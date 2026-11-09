@@ -1,0 +1,1863 @@
+{
+ "unita": [
+  {
+   "k": "u",
+   "naz": "AU",
+   "tipo": "I",
+   "sp": 1,
+   "sub": "",
+   "img": "AU_x_I_1",
+   "n": 48
+  },
+  {
+   "k": "u",
+   "naz": "AU",
+   "tipo": "I",
+   "sp": 5,
+   "sub": "",
+   "img": "AU_x_I_5",
+   "n": 10
+  },
+  {
+   "k": "u",
+   "naz": "AU",
+   "tipo": "I",
+   "sp": 10,
+   "sub": "",
+   "img": "AU_x_I_10",
+   "n": 4
+  },
+  {
+   "k": "u",
+   "naz": "AU",
+   "tipo": "I",
+   "sp": 15,
+   "sub": "",
+   "img": "AU_x_I_15",
+   "n": 3
+  },
+  {
+   "k": "u",
+   "naz": "AU",
+   "tipo": "I",
+   "sp": 20,
+   "sub": "",
+   "img": "AU_x_I_20",
+   "n": 3
+  },
+  {
+   "k": "u",
+   "naz": "AU",
+   "tipo": "L",
+   "sp": 1,
+   "sub": "",
+   "img": "AU_x_L_1",
+   "n": 20
+  },
+  {
+   "k": "u",
+   "naz": "AU",
+   "tipo": "L",
+   "sp": 5,
+   "sub": "",
+   "img": "AU_x_L_5",
+   "n": 4
+  },
+  {
+   "k": "u",
+   "naz": "AU",
+   "tipo": "C",
+   "sp": 1,
+   "sub": "",
+   "img": "AU_x_C_1",
+   "n": 15
+  },
+  {
+   "k": "u",
+   "naz": "AU",
+   "tipo": "C",
+   "sp": 5,
+   "sub": "",
+   "img": "AU_x_C_5",
+   "n": 1
+  },
+  {
+   "k": "u",
+   "naz": "AU",
+   "tipo": "I",
+   "sp": 1,
+   "sub": "Pm",
+   "img": "AU_Pm_I_1",
+   "n": 11
+  },
+  {
+   "k": "u",
+   "naz": "AU",
+   "tipo": "I",
+   "sp": 5,
+   "sub": "Pm",
+   "img": "AU_Pm_I_5",
+   "n": 1
+  },
+  {
+   "k": "u",
+   "naz": "AU",
+   "tipo": "C",
+   "sp": 1,
+   "sub": "Pm",
+   "img": "AU_Pm_C_1",
+   "n": 5
+  },
+  {
+   "k": "u",
+   "naz": "FR",
+   "tipo": "I",
+   "sp": 1,
+   "sub": "",
+   "img": "FR_x_I_1",
+   "n": 48
+  },
+  {
+   "k": "u",
+   "naz": "FR",
+   "tipo": "I",
+   "sp": 5,
+   "sub": "",
+   "img": "FR_x_I_5",
+   "n": 10
+  },
+  {
+   "k": "u",
+   "naz": "FR",
+   "tipo": "I",
+   "sp": 10,
+   "sub": "",
+   "img": "FR_x_I_10",
+   "n": 4
+  },
+  {
+   "k": "u",
+   "naz": "FR",
+   "tipo": "I",
+   "sp": 15,
+   "sub": "",
+   "img": "FR_x_I_15",
+   "n": 3
+  },
+  {
+   "k": "u",
+   "naz": "FR",
+   "tipo": "I",
+   "sp": 20,
+   "sub": "",
+   "img": "FR_x_I_20",
+   "n": 3
+  },
+  {
+   "k": "u",
+   "naz": "FR",
+   "tipo": "GI",
+   "sp": 5,
+   "sub": "",
+   "img": "FR_x_GI_5",
+   "n": 2
+  },
+  {
+   "k": "u",
+   "naz": "FR",
+   "tipo": "GI",
+   "sp": 1,
+   "sub": "",
+   "img": "FR_x_GI_1",
+   "n": 10
+  },
+  {
+   "k": "u",
+   "naz": "FR",
+   "tipo": "P",
+   "sp": 1,
+   "sub": "",
+   "img": "FR_x_P_1",
+   "n": 2
+  },
+  {
+   "k": "u",
+   "naz": "FR",
+   "tipo": "GC",
+   "sp": 1,
+   "sub": "",
+   "img": "FR_x_GC_1",
+   "n": 1
+  },
+  {
+   "k": "u",
+   "naz": "FR",
+   "tipo": "C",
+   "sp": 1,
+   "sub": "",
+   "img": "FR_x_C_1",
+   "n": 18
+  },
+  {
+   "k": "u",
+   "naz": "FR",
+   "tipo": "C",
+   "sp": 5,
+   "sub": "",
+   "img": "FR_x_C_5",
+   "n": 1
+  },
+  {
+   "k": "u",
+   "naz": "FR",
+   "tipo": "S",
+   "sp": 2,
+   "sub": "",
+   "img": "FR_x_S_2",
+   "n": 2
+  },
+  {
+   "k": "u",
+   "naz": "FR",
+   "tipo": "S",
+   "sp": 1,
+   "sub": "",
+   "img": "FR_x_S_1",
+   "n": 8
+  },
+  {
+   "k": "u",
+   "naz": "FR",
+   "tipo": "T",
+   "sp": 1,
+   "sub": "",
+   "img": "FR_x_T_1",
+   "n": 2
+  },
+  {
+   "k": "u",
+   "naz": "FR",
+   "tipo": "I",
+   "sp": 1,
+   "sub": "B",
+   "img": "FR_B_I_1",
+   "n": 8
+  },
+  {
+   "k": "u",
+   "naz": "FR",
+   "tipo": "I",
+   "sp": 5,
+   "sub": "B",
+   "img": "FR_B_I_5",
+   "n": 1
+  },
+  {
+   "k": "u",
+   "naz": "FR",
+   "tipo": "C",
+   "sp": 1,
+   "sub": "B",
+   "img": "FR_B_C_1",
+   "n": 1
+  },
+  {
+   "k": "u",
+   "naz": "FR",
+   "tipo": "I",
+   "sp": 1,
+   "sub": "D",
+   "img": "FR_D_I_1",
+   "n": 7
+  },
+  {
+   "k": "u",
+   "naz": "FR",
+   "tipo": "C",
+   "sp": 1,
+   "sub": "D",
+   "img": "FR_D_C_1",
+   "n": 1
+  },
+  {
+   "k": "u",
+   "naz": "FR",
+   "tipo": "S",
+   "sp": 2,
+   "sub": "D",
+   "img": "FR_D_S_2",
+   "n": 1
+  },
+  {
+   "k": "u",
+   "naz": "FR",
+   "tipo": "S",
+   "sp": 1,
+   "sub": "D",
+   "img": "FR_D_S_1",
+   "n": 1
+  },
+  {
+   "k": "u",
+   "naz": "FR",
+   "tipo": "T",
+   "sp": 1,
+   "sub": "D",
+   "img": "FR_D_T_1",
+   "n": 1
+  },
+  {
+   "k": "u",
+   "naz": "FR",
+   "tipo": "I",
+   "sp": 1,
+   "sub": "H",
+   "img": "FR_H_I_1",
+   "n": 6
+  },
+  {
+   "k": "u",
+   "naz": "FR",
+   "tipo": "C",
+   "sp": 1,
+   "sub": "H",
+   "img": "FR_H_C_1",
+   "n": 1
+  },
+  {
+   "k": "u",
+   "naz": "FR",
+   "tipo": "I",
+   "sp": 5,
+   "sub": "I",
+   "img": "FR_I_I_5",
+   "n": 1
+  },
+  {
+   "k": "u",
+   "naz": "FR",
+   "tipo": "I",
+   "sp": 1,
+   "sub": "Da",
+   "img": "FR_Da_I_1",
+   "n": 4
+  },
+  {
+   "k": "u",
+   "naz": "FR",
+   "tipo": "I",
+   "sp": 1,
+   "sub": "I",
+   "img": "FR_I_I_1",
+   "n": 7
+  },
+  {
+   "k": "u",
+   "naz": "FR",
+   "tipo": "I",
+   "sp": 1,
+   "sub": "N",
+   "img": "FR_N_I_1",
+   "n": 12
+  },
+  {
+   "k": "u",
+   "naz": "FR",
+   "tipo": "C",
+   "sp": 1,
+   "sub": "Po",
+   "img": "FR_Po_C_1",
+   "n": 3
+  },
+  {
+   "k": "u",
+   "naz": "FR",
+   "tipo": "I",
+   "sp": 1,
+   "sub": "Po",
+   "img": "FR_Po_I_1",
+   "n": 15
+  },
+  {
+   "k": "u",
+   "naz": "FR",
+   "tipo": "I",
+   "sp": 5,
+   "sub": "Po",
+   "img": "FR_Po_I_5",
+   "n": 2
+  },
+  {
+   "k": "u",
+   "naz": "FR",
+   "tipo": "I",
+   "sp": 1,
+   "sub": "Pt",
+   "img": "FR_Pt_I_1",
+   "n": 1
+  },
+  {
+   "k": "u",
+   "naz": "FR",
+   "tipo": "I",
+   "sp": 1,
+   "sub": "R",
+   "img": "FR_R_I_1",
+   "n": 13
+  },
+  {
+   "k": "u",
+   "naz": "FR",
+   "tipo": "I",
+   "sp": 1,
+   "sub": "S",
+   "img": "FR_S_I_1",
+   "n": 9
+  },
+  {
+   "k": "u",
+   "naz": "FR",
+   "tipo": "I",
+   "sp": 5,
+   "sub": "S",
+   "img": "FR_S_I_5",
+   "n": 1
+  },
+  {
+   "k": "u",
+   "naz": "FR",
+   "tipo": "C",
+   "sp": 1,
+   "sub": "S",
+   "img": "FR_S_C_1",
+   "n": 1
+  },
+  {
+   "k": "u",
+   "naz": "FR",
+   "tipo": "I",
+   "sp": 1,
+   "sub": "W",
+   "img": "FR_W_I_1",
+   "n": 9
+  },
+  {
+   "k": "u",
+   "naz": "FR",
+   "tipo": "I",
+   "sp": 5,
+   "sub": "W",
+   "img": "FR_W_I_5",
+   "n": 1
+  },
+  {
+   "k": "u",
+   "naz": "FR",
+   "tipo": "I",
+   "sp": 1,
+   "sub": "Sz",
+   "img": "FR_Sz_I_1",
+   "n": 4
+  },
+  {
+   "k": "u",
+   "naz": "FR",
+   "tipo": "I",
+   "sp": 1,
+   "sub": "Sp",
+   "img": "FR_Sp_I_1",
+   "n": 1
+  },
+  {
+   "k": "u",
+   "naz": "FR",
+   "tipo": "C",
+   "sp": 1,
+   "sub": "W",
+   "img": "FR_W_C_1",
+   "n": 1
+  },
+  {
+   "k": "u",
+   "naz": "FR",
+   "tipo": "I",
+   "sp": 1,
+   "sub": "Wu",
+   "img": "FR_Wu_I_1",
+   "n": 5
+  },
+  {
+   "k": "u",
+   "naz": "EN",
+   "tipo": "I",
+   "sp": 1,
+   "sub": "",
+   "img": "EN_x_I_1",
+   "n": 30
+  },
+  {
+   "k": "u",
+   "naz": "EN",
+   "tipo": "I",
+   "sp": 5,
+   "sub": "",
+   "img": "EN_x_I_5",
+   "n": 8
+  },
+  {
+   "k": "u",
+   "naz": "EN",
+   "tipo": "L",
+   "sp": 1,
+   "sub": "",
+   "img": "EN_x_L_1",
+   "n": 7
+  },
+  {
+   "k": "u",
+   "naz": "EN",
+   "tipo": "M",
+   "sp": 5,
+   "sub": "",
+   "img": "EN_x_M_5",
+   "n": 1
+  },
+  {
+   "k": "u",
+   "naz": "EN",
+   "tipo": "M",
+   "sp": 1,
+   "sub": "",
+   "img": "EN_x_M_1",
+   "n": 6
+  },
+  {
+   "k": "u",
+   "naz": "EN",
+   "tipo": "P",
+   "sp": 1,
+   "sub": "",
+   "img": "EN_x_P_1",
+   "n": 3
+  },
+  {
+   "k": "u",
+   "naz": "EN",
+   "tipo": "C",
+   "sp": 1,
+   "sub": "",
+   "img": "EN_x_C_1",
+   "n": 3
+  },
+  {
+   "k": "u",
+   "naz": "EN",
+   "tipo": "S",
+   "sp": 1,
+   "sub": "",
+   "img": "EN_x_S_1",
+   "n": 12
+  },
+  {
+   "k": "u",
+   "naz": "EN",
+   "tipo": "S",
+   "sp": 2,
+   "sub": "",
+   "img": "EN_x_S_2",
+   "n": 2
+  },
+  {
+   "k": "u",
+   "naz": "EN",
+   "tipo": "T",
+   "sp": 1,
+   "sub": "",
+   "img": "EN_x_T_1",
+   "n": 4
+  },
+  {
+   "k": "u",
+   "naz": "EN",
+   "tipo": "I",
+   "sp": 1,
+   "sub": "K",
+   "img": "EN_K_I_1",
+   "n": 3
+  },
+  {
+   "k": "u",
+   "naz": "EN",
+   "tipo": "I",
+   "sp": 5,
+   "sub": "K",
+   "img": "EN_K_I_5",
+   "n": 1
+  },
+  {
+   "k": "u",
+   "naz": "EN",
+   "tipo": "I",
+   "sp": 1,
+   "sub": "H",
+   "img": "EN_H_I_1",
+   "n": 11
+  },
+  {
+   "k": "u",
+   "naz": "EN",
+   "tipo": "I",
+   "sp": 5,
+   "sub": "H",
+   "img": "EN_H_I_5",
+   "n": 1
+  },
+  {
+   "k": "u",
+   "naz": "EN",
+   "tipo": "C",
+   "sp": 1,
+   "sub": "H",
+   "img": "EN_H_C_1",
+   "n": 2
+  },
+  {
+   "k": "u",
+   "naz": "EN",
+   "tipo": "I",
+   "sp": 1,
+   "sub": "Pt",
+   "img": "EN_Pt_I_1",
+   "n": 10
+  },
+  {
+   "k": "u",
+   "naz": "EN",
+   "tipo": "I",
+   "sp": 5,
+   "sub": "Pt",
+   "img": "EN_Pt_I_5",
+   "n": 1
+  },
+  {
+   "k": "u",
+   "naz": "EN",
+   "tipo": "C",
+   "sp": 1,
+   "sub": "Pt",
+   "img": "EN_Pt_C_1",
+   "n": 1
+  },
+  {
+   "k": "u",
+   "naz": "EN",
+   "tipo": "S",
+   "sp": 1,
+   "sub": "Pt",
+   "img": "EN_Pt_S_1",
+   "n": 1
+  },
+  {
+   "k": "u",
+   "naz": "EN",
+   "tipo": "T",
+   "sp": 1,
+   "sub": "Pt",
+   "img": "EN_Pt_T_1",
+   "n": 1
+  },
+  {
+   "k": "u",
+   "naz": "PR",
+   "tipo": "I",
+   "sp": 10,
+   "sub": "",
+   "img": "PR_x_I_10",
+   "n": 3
+  },
+  {
+   "k": "u",
+   "naz": "PR",
+   "tipo": "I",
+   "sp": 15,
+   "sub": "",
+   "img": "PR_x_I_15",
+   "n": 1
+  },
+  {
+   "k": "u",
+   "naz": "PR",
+   "tipo": "I",
+   "sp": 20,
+   "sub": "",
+   "img": "PR_x_I_20",
+   "n": 1
+  },
+  {
+   "k": "u",
+   "naz": "PR",
+   "tipo": "I",
+   "sp": 1,
+   "sub": "",
+   "img": "PR_x_I_1",
+   "n": 34
+  },
+  {
+   "k": "u",
+   "naz": "PR",
+   "tipo": "I",
+   "sp": 5,
+   "sub": "",
+   "img": "PR_x_I_5",
+   "n": 5
+  },
+  {
+   "k": "u",
+   "naz": "PR",
+   "tipo": "L",
+   "sp": 5,
+   "sub": "",
+   "img": "PR_x_L_5",
+   "n": 4
+  },
+  {
+   "k": "u",
+   "naz": "PR",
+   "tipo": "L",
+   "sp": 15,
+   "sub": "",
+   "img": "PR_x_L_15",
+   "n": 1
+  },
+  {
+   "k": "u",
+   "naz": "PR",
+   "tipo": "L",
+   "sp": 20,
+   "sub": "",
+   "img": "PR_x_L_20",
+   "n": 1
+  },
+  {
+   "k": "u",
+   "naz": "PR",
+   "tipo": "L",
+   "sp": 10,
+   "sub": "",
+   "img": "PR_x_L_10",
+   "n": 2
+  },
+  {
+   "k": "u",
+   "naz": "PR",
+   "tipo": "L",
+   "sp": 1,
+   "sub": "",
+   "img": "PR_x_L_1",
+   "n": 27
+  },
+  {
+   "k": "u",
+   "naz": "PR",
+   "tipo": "C",
+   "sp": 1,
+   "sub": "",
+   "img": "PR_x_C_1",
+   "n": 17
+  },
+  {
+   "k": "u",
+   "naz": "PR",
+   "tipo": "C",
+   "sp": 5,
+   "sub": "",
+   "img": "PR_x_C_5",
+   "n": 1
+  },
+  {
+   "k": "u",
+   "naz": "PR",
+   "tipo": "I",
+   "sp": 1,
+   "sub": "Br",
+   "img": "PR_Br_I_1",
+   "n": 3
+  },
+  {
+   "k": "u",
+   "naz": "PR",
+   "tipo": "I",
+   "sp": 1,
+   "sub": "He",
+   "img": "PR_He_I_1",
+   "n": 3
+  },
+  {
+   "k": "u",
+   "naz": "PR",
+   "tipo": "I",
+   "sp": 1,
+   "sub": "S",
+   "img": "PR_S_I_1",
+   "n": 4
+  },
+  {
+   "k": "u",
+   "naz": "PR",
+   "tipo": "C",
+   "sp": 1,
+   "sub": "S",
+   "img": "PR_S_C_1",
+   "n": 1
+  },
+  {
+   "k": "u",
+   "naz": "RU",
+   "tipo": "I",
+   "sp": 15,
+   "sub": "",
+   "img": "RU_x_I_15",
+   "n": 3
+  },
+  {
+   "k": "u",
+   "naz": "RU",
+   "tipo": "I",
+   "sp": 20,
+   "sub": "",
+   "img": "RU_x_I_20",
+   "n": 3
+  },
+  {
+   "k": "u",
+   "naz": "RU",
+   "tipo": "I",
+   "sp": 1,
+   "sub": "",
+   "img": "RU_x_I_1",
+   "n": 43
+  },
+  {
+   "k": "u",
+   "naz": "RU",
+   "tipo": "I",
+   "sp": 5,
+   "sub": "",
+   "img": "RU_x_I_5",
+   "n": 10
+  },
+  {
+   "k": "u",
+   "naz": "RU",
+   "tipo": "I",
+   "sp": 10,
+   "sub": "",
+   "img": "RU_x_I_10",
+   "n": 4
+  },
+  {
+   "k": "u",
+   "naz": "RU",
+   "tipo": "GI",
+   "sp": 1,
+   "sub": "",
+   "img": "RU_x_GI_1",
+   "n": 5
+  },
+  {
+   "k": "u",
+   "naz": "RU",
+   "tipo": "C",
+   "sp": 1,
+   "sub": "",
+   "img": "RU_x_C_1",
+   "n": 15
+  },
+  {
+   "k": "u",
+   "naz": "RU",
+   "tipo": "GC",
+   "sp": 1,
+   "sub": "",
+   "img": "RU_x_GC_1",
+   "n": 1
+  },
+  {
+   "k": "u",
+   "naz": "RU",
+   "tipo": "CC",
+   "sp": 1,
+   "sub": "",
+   "img": "RU_x_CC_1",
+   "n": 9
+  },
+  {
+   "k": "u",
+   "naz": "RU",
+   "tipo": "S",
+   "sp": 1,
+   "sub": "",
+   "img": "RU_x_S_1",
+   "n": 1
+  },
+  {
+   "k": "u",
+   "naz": "RU",
+   "tipo": "T",
+   "sp": 1,
+   "sub": "",
+   "img": "RU_x_T_1",
+   "n": 1
+  },
+  {
+   "k": "u",
+   "naz": "RU",
+   "tipo": "I",
+   "sp": 1,
+   "sub": "Sw",
+   "img": "RU_Sw_I_1",
+   "n": 10
+  },
+  {
+   "k": "u",
+   "naz": "RU",
+   "tipo": "I",
+   "sp": 5,
+   "sub": "Sw",
+   "img": "RU_Sw_I_5",
+   "n": 1
+  },
+  {
+   "k": "u",
+   "naz": "RU",
+   "tipo": "C",
+   "sp": 1,
+   "sub": "Sw",
+   "img": "RU_Sw_C_1",
+   "n": 2
+  },
+  {
+   "k": "u",
+   "naz": "RU",
+   "tipo": "S",
+   "sp": 1,
+   "sub": "Sw",
+   "img": "RU_Sw_S_1",
+   "n": 1
+  },
+  {
+   "k": "u",
+   "naz": "RU",
+   "tipo": "T",
+   "sp": 1,
+   "sub": "Sw",
+   "img": "RU_Sw_T_1",
+   "n": 1
+  },
+  {
+   "k": "u",
+   "naz": "SP",
+   "tipo": "I",
+   "sp": 1,
+   "sub": "",
+   "img": "SP_x_I_1",
+   "n": 26
+  },
+  {
+   "k": "u",
+   "naz": "SP",
+   "tipo": "I",
+   "sp": 5,
+   "sub": "",
+   "img": "SP_x_I_5",
+   "n": 3
+  },
+  {
+   "k": "u",
+   "naz": "SP",
+   "tipo": "M",
+   "sp": 5,
+   "sub": "",
+   "img": "SP_x_M_5",
+   "n": 1
+  },
+  {
+   "k": "u",
+   "naz": "SP",
+   "tipo": "M",
+   "sp": 1,
+   "sub": "",
+   "img": "SP_x_M_1",
+   "n": 13
+  },
+  {
+   "k": "u",
+   "naz": "SP",
+   "tipo": "P",
+   "sp": 1,
+   "sub": "",
+   "img": "SP_x_P_1",
+   "n": 6
+  },
+  {
+   "k": "u",
+   "naz": "SP",
+   "tipo": "C",
+   "sp": 1,
+   "sub": "",
+   "img": "SP_x_C_1",
+   "n": 4
+  },
+  {
+   "k": "u",
+   "naz": "SP",
+   "tipo": "S",
+   "sp": 1,
+   "sub": "",
+   "img": "SP_x_S_1",
+   "n": 6
+  },
+  {
+   "k": "u",
+   "naz": "SP",
+   "tipo": "T",
+   "sp": 1,
+   "sub": "",
+   "img": "SP_x_T_1",
+   "n": 2
+  },
+  {
+   "k": "u",
+   "naz": "TU",
+   "tipo": "I",
+   "sp": 10,
+   "sub": "",
+   "img": "TU_x_I_10",
+   "n": 2
+  },
+  {
+   "k": "u",
+   "naz": "TU",
+   "tipo": "I",
+   "sp": 1,
+   "sub": "",
+   "img": "TU_x_I_1",
+   "n": 10
+  },
+  {
+   "k": "u",
+   "naz": "TU",
+   "tipo": "I",
+   "sp": 5,
+   "sub": "",
+   "img": "TU_x_I_5",
+   "n": 4
+  },
+  {
+   "k": "u",
+   "naz": "TU",
+   "tipo": "C",
+   "sp": 1,
+   "sub": "Mm",
+   "img": "TU_Mm_C_1",
+   "n": 3
+  },
+  {
+   "k": "u",
+   "naz": "FR",
+   "tipo": "C",
+   "sp": 1,
+   "sub": "N",
+   "img": "FR_N_C_1",
+   "n": 1
+  },
+  {
+   "k": "u",
+   "naz": "FR",
+   "tipo": "C",
+   "sp": 1,
+   "sub": "I",
+   "img": "FR_I_C_1",
+   "n": 2
+  }
+ ],
+ "capi": [
+  {
+   "k": "l",
+   "naz": "EN",
+   "nome": "Wellington",
+   "val": 3,
+   "sub": "",
+   "img": "capo_EN_x_Wellington"
+  },
+  {
+   "k": "l",
+   "naz": "EN",
+   "nome": "Moore",
+   "val": 2,
+   "sub": "",
+   "img": "capo_EN_x_Moore"
+  },
+  {
+   "k": "l",
+   "naz": "EN",
+   "nome": "Beresford",
+   "val": 1,
+   "sub": "",
+   "img": "capo_EN_x_Beresford"
+  },
+  {
+   "k": "l",
+   "naz": "EN",
+   "nome": "Hill",
+   "val": 1,
+   "sub": "",
+   "img": "capo_EN_x_Hill"
+  },
+  {
+   "k": "l",
+   "naz": "EN",
+   "nome": "Uxbridge",
+   "val": 1,
+   "sub": "",
+   "img": "capo_EN_x_Uxbridge"
+  },
+  {
+   "k": "l",
+   "naz": "EN",
+   "nome": "Nelson",
+   "val": 1,
+   "sub": "",
+   "img": "capo_EN_x_Nelson"
+  },
+  {
+   "k": "l",
+   "naz": "EN",
+   "nome": "Leader A",
+   "val": 0,
+   "sub": "",
+   "img": "capo_EN_x_Leader_A"
+  },
+  {
+   "k": "l",
+   "naz": "EN",
+   "nome": "Leader A",
+   "val": 0,
+   "sub": "Pt",
+   "img": "capo_EN_Pt_Leader_A"
+  },
+  {
+   "k": "l",
+   "naz": "PR",
+   "nome": "Blucher",
+   "val": 2,
+   "sub": "",
+   "img": "capo_PR_x_Blucher"
+  },
+  {
+   "k": "l",
+   "naz": "PR",
+   "nome": "Brunswick",
+   "val": 1,
+   "sub": "",
+   "img": "capo_PR_x_Brunswick"
+  },
+  {
+   "k": "l",
+   "naz": "PR",
+   "nome": "Bulow",
+   "val": 1,
+   "sub": "",
+   "img": "capo_PR_x_Bulow"
+  },
+  {
+   "k": "l",
+   "naz": "PR",
+   "nome": "Hohenlohe",
+   "val": 1,
+   "sub": "",
+   "img": "capo_PR_x_Hohenlohe"
+  },
+  {
+   "k": "l",
+   "naz": "PR",
+   "nome": "Kleist",
+   "val": 1,
+   "sub": "",
+   "img": "capo_PR_x_Kleist"
+  },
+  {
+   "k": "l",
+   "naz": "PR",
+   "nome": "Ruchel",
+   "val": 1,
+   "sub": "",
+   "img": "capo_PR_x_Ruchel"
+  },
+  {
+   "k": "l",
+   "naz": "PR",
+   "nome": "Yorck",
+   "val": 1,
+   "sub": "",
+   "img": "capo_PR_x_Yorck"
+  },
+  {
+   "k": "l",
+   "naz": "PR",
+   "nome": "Leader A",
+   "val": 0,
+   "sub": "",
+   "img": "capo_PR_x_Leader_A"
+  },
+  {
+   "k": "l",
+   "naz": "PR",
+   "nome": "Leader B",
+   "val": 0,
+   "sub": "",
+   "img": "capo_PR_x_Leader_B"
+  },
+  {
+   "k": "l",
+   "naz": "PR",
+   "nome": "Leader C",
+   "val": 0,
+   "sub": "",
+   "img": "capo_PR_x_Leader_C"
+  },
+  {
+   "k": "l",
+   "naz": "PR",
+   "nome": "Leader D",
+   "val": 0,
+   "sub": "",
+   "img": "capo_PR_x_Leader_D"
+  },
+  {
+   "k": "l",
+   "naz": "PR",
+   "nome": "Leader A",
+   "val": 0,
+   "sub": "S",
+   "img": "capo_PR_S_Leader_A"
+  },
+  {
+   "k": "l",
+   "naz": "RU",
+   "nome": "Bagration",
+   "val": 2,
+   "sub": "",
+   "img": "capo_RU_x_Bagration"
+  },
+  {
+   "k": "l",
+   "naz": "RU",
+   "nome": "Barclay",
+   "val": 2,
+   "sub": "",
+   "img": "capo_RU_x_Barclay"
+  },
+  {
+   "k": "l",
+   "naz": "RU",
+   "nome": "Kutusov",
+   "val": 2,
+   "sub": "",
+   "img": "capo_RU_x_Kutusov"
+  },
+  {
+   "k": "l",
+   "naz": "RU",
+   "nome": "Bennigsen",
+   "val": 1,
+   "sub": "",
+   "img": "capo_RU_x_Bennigsen"
+  },
+  {
+   "k": "l",
+   "naz": "RU",
+   "nome": "Buxhowden",
+   "val": 1,
+   "sub": "",
+   "img": "capo_RU_x_Buxhowden"
+  },
+  {
+   "k": "l",
+   "naz": "RU",
+   "nome": "Constantine",
+   "val": 1,
+   "sub": "",
+   "img": "capo_RU_x_Constantine"
+  },
+  {
+   "k": "l",
+   "naz": "RU",
+   "nome": "Docturov",
+   "val": 1,
+   "sub": "",
+   "img": "capo_RU_x_Docturov"
+  },
+  {
+   "k": "l",
+   "naz": "RU",
+   "nome": "Tormazov",
+   "val": 1,
+   "sub": "",
+   "img": "capo_RU_x_Tormazov"
+  },
+  {
+   "k": "l",
+   "naz": "RU",
+   "nome": "Wittgenstein",
+   "val": 1,
+   "sub": "",
+   "img": "capo_RU_x_Wittgenstein"
+  },
+  {
+   "k": "l",
+   "naz": "RU",
+   "nome": "Leader A",
+   "val": 0,
+   "sub": "",
+   "img": "capo_RU_x_Leader_A"
+  },
+  {
+   "k": "l",
+   "naz": "RU",
+   "nome": "Leader B",
+   "val": 0,
+   "sub": "",
+   "img": "capo_RU_x_Leader_B"
+  },
+  {
+   "k": "l",
+   "naz": "RU",
+   "nome": "Leader C",
+   "val": 0,
+   "sub": "",
+   "img": "capo_RU_x_Leader_C"
+  },
+  {
+   "k": "l",
+   "naz": "RU",
+   "nome": "Bernadotte",
+   "val": 1,
+   "sub": "Sw",
+   "img": "capo_RU_Sw_Bernadotte"
+  },
+  {
+   "k": "l",
+   "naz": "RU",
+   "nome": "Leader A",
+   "val": 0,
+   "sub": "Sw",
+   "img": "capo_RU_Sw_Leader_A"
+  },
+  {
+   "k": "l",
+   "naz": "SP",
+   "nome": "Blake",
+   "val": 1,
+   "sub": "",
+   "img": "capo_SP_x_Blake"
+  },
+  {
+   "k": "l",
+   "naz": "SP",
+   "nome": "Pallafox",
+   "val": 1,
+   "sub": "",
+   "img": "capo_SP_x_Pallafox"
+  },
+  {
+   "k": "l",
+   "naz": "SP",
+   "nome": "La Romana",
+   "val": 1,
+   "sub": "",
+   "img": "capo_SP_x_La_Romana"
+  },
+  {
+   "k": "l",
+   "naz": "SP",
+   "nome": "Castanos",
+   "val": 0,
+   "sub": "",
+   "img": "capo_SP_x_Castanos"
+  },
+  {
+   "k": "l",
+   "naz": "SP",
+   "nome": "Cuesta",
+   "val": 0,
+   "sub": "",
+   "img": "capo_SP_x_Cuesta"
+  },
+  {
+   "k": "l",
+   "naz": "AU",
+   "nome": "Charles",
+   "val": 2,
+   "sub": "",
+   "img": "capo_AU_x_Charles"
+  },
+  {
+   "k": "l",
+   "naz": "AU",
+   "nome": "Schwarzenberg",
+   "val": 2,
+   "sub": "",
+   "img": "capo_AU_x_Schwarzenberg"
+  },
+  {
+   "k": "l",
+   "naz": "AU",
+   "nome": "Bellegarde",
+   "val": 1,
+   "sub": "",
+   "img": "capo_AU_x_Bellegarde"
+  },
+  {
+   "k": "l",
+   "naz": "AU",
+   "nome": "Hiller",
+   "val": 1,
+   "sub": "",
+   "img": "capo_AU_x_Hiller"
+  },
+  {
+   "k": "l",
+   "naz": "AU",
+   "nome": "John",
+   "val": 1,
+   "sub": "",
+   "img": "capo_AU_x_John"
+  },
+  {
+   "k": "l",
+   "naz": "AU",
+   "nome": "Louis",
+   "val": 1,
+   "sub": "",
+   "img": "capo_AU_x_Louis"
+  },
+  {
+   "k": "l",
+   "naz": "AU",
+   "nome": "Mack",
+   "val": 1,
+   "sub": "",
+   "img": "capo_AU_x_Mack"
+  },
+  {
+   "k": "l",
+   "naz": "AU",
+   "nome": "Kray",
+   "val": 1,
+   "sub": "",
+   "img": "capo_AU_x_Kray"
+  },
+  {
+   "k": "l",
+   "naz": "AU",
+   "nome": "Melas",
+   "val": 1,
+   "sub": "",
+   "img": "capo_AU_x_Melas"
+  },
+  {
+   "k": "l",
+   "naz": "AU",
+   "nome": "Leader A",
+   "val": 1,
+   "sub": "",
+   "img": "capo_AU_x_Leader_A"
+  },
+  {
+   "k": "l",
+   "naz": "AU",
+   "nome": "Leader B",
+   "val": 1,
+   "sub": "",
+   "img": "capo_AU_x_Leader_B"
+  },
+  {
+   "k": "l",
+   "naz": "AU",
+   "nome": "Beaulieu",
+   "val": 0,
+   "sub": "",
+   "img": "capo_AU_x_Beaulieu"
+  },
+  {
+   "k": "l",
+   "naz": "AU",
+   "nome": "Davidovich",
+   "val": 0,
+   "sub": "",
+   "img": "capo_AU_x_Davidovich"
+  },
+  {
+   "k": "l",
+   "naz": "AU",
+   "nome": "Meszaros",
+   "val": 0,
+   "sub": "",
+   "img": "capo_AU_x_Meszaros"
+  },
+  {
+   "k": "l",
+   "naz": "AU",
+   "nome": "Quasdanovich",
+   "val": 0,
+   "sub": "",
+   "img": "capo_AU_x_Quasdanovich"
+  },
+  {
+   "k": "l",
+   "naz": "AU",
+   "nome": "Wurmser",
+   "val": 0,
+   "sub": "",
+   "img": "capo_AU_x_Wurmser"
+  },
+  {
+   "k": "l",
+   "naz": "AU",
+   "nome": "Leader C",
+   "val": 0,
+   "sub": "",
+   "img": "capo_AU_x_Leader_C"
+  },
+  {
+   "k": "l",
+   "naz": "AU",
+   "nome": "Leader D",
+   "val": 0,
+   "sub": "",
+   "img": "capo_AU_x_Leader_D"
+  },
+  {
+   "k": "l",
+   "naz": "AU",
+   "nome": "Leader E",
+   "val": 0,
+   "sub": "",
+   "img": "capo_AU_x_Leader_E"
+  },
+  {
+   "k": "l",
+   "naz": "AU",
+   "nome": "Leader F",
+   "val": 0,
+   "sub": "",
+   "img": "capo_AU_x_Leader_F"
+  },
+  {
+   "k": "l",
+   "naz": "AU",
+   "nome": "Leader G",
+   "val": 0,
+   "sub": "",
+   "img": "capo_AU_x_Leader_G"
+  },
+  {
+   "k": "l",
+   "naz": "AU",
+   "nome": "Leader H",
+   "val": 0,
+   "sub": "",
+   "img": "capo_AU_x_Leader_H"
+  },
+  {
+   "k": "l",
+   "naz": "AU",
+   "nome": "Colli",
+   "val": 0,
+   "sub": "Pm",
+   "img": "capo_AU_Pm_Colli"
+  },
+  {
+   "k": "l",
+   "naz": "AU",
+   "nome": "Ferdinand",
+   "val": 1,
+   "sub": "",
+   "img": "capo_AU_x_Ferdinand"
+  },
+  {
+   "k": "l",
+   "naz": "FR",
+   "nome": "Napoleon",
+   "val": 3,
+   "sub": "",
+   "img": "capo_FR_x_Napoleon"
+  },
+  {
+   "k": "l",
+   "naz": "FR",
+   "nome": "Davout",
+   "val": 2,
+   "sub": "",
+   "img": "capo_FR_x_Davout"
+  },
+  {
+   "k": "l",
+   "naz": "FR",
+   "nome": "Soult",
+   "val": 2,
+   "sub": "",
+   "img": "capo_FR_x_Soult"
+  },
+  {
+   "k": "l",
+   "naz": "FR",
+   "nome": "Bonaparte",
+   "val": 2,
+   "sub": "",
+   "img": "capo_FR_x_Bonaparte"
+  },
+  {
+   "k": "l",
+   "naz": "FR",
+   "nome": "Desaix",
+   "val": 2,
+   "sub": "",
+   "img": "capo_FR_x_Desaix"
+  },
+  {
+   "k": "l",
+   "naz": "FR",
+   "nome": "Lannes",
+   "val": 2,
+   "sub": "",
+   "img": "capo_FR_x_Lannes"
+  },
+  {
+   "k": "l",
+   "naz": "FR",
+   "nome": "Massena",
+   "val": 2,
+   "sub": "",
+   "img": "capo_FR_x_Massena"
+  },
+  {
+   "k": "l",
+   "naz": "FR",
+   "nome": "Kellermann",
+   "val": 1,
+   "sub": "",
+   "img": "capo_FR_x_Kellermann"
+  },
+  {
+   "k": "l",
+   "naz": "FR",
+   "nome": "Kleber",
+   "val": 1,
+   "sub": "",
+   "img": "capo_FR_x_Kleber"
+  },
+  {
+   "k": "l",
+   "naz": "FR",
+   "nome": "Moreau",
+   "val": 1,
+   "sub": "",
+   "img": "capo_FR_x_Moreau"
+  },
+  {
+   "k": "l",
+   "naz": "FR",
+   "nome": "Eugene",
+   "val": 1,
+   "sub": "",
+   "img": "capo_FR_x_Eugene"
+  },
+  {
+   "k": "l",
+   "naz": "FR",
+   "nome": "Marmont",
+   "val": 1,
+   "sub": "",
+   "img": "capo_FR_x_Marmont"
+  },
+  {
+   "k": "l",
+   "naz": "FR",
+   "nome": "Murat",
+   "val": 1,
+   "sub": "",
+   "img": "capo_FR_x_Murat"
+  },
+  {
+   "k": "l",
+   "naz": "FR",
+   "nome": "Ney",
+   "val": 1,
+   "sub": "",
+   "img": "capo_FR_x_Ney"
+  },
+  {
+   "k": "l",
+   "naz": "FR",
+   "nome": "Poniatowski",
+   "val": 1,
+   "sub": "",
+   "img": "capo_FR_x_Poniatowski"
+  },
+  {
+   "k": "l",
+   "naz": "FR",
+   "nome": "Victor",
+   "val": 1,
+   "sub": "",
+   "img": "capo_FR_x_Victor"
+  },
+  {
+   "k": "l",
+   "naz": "FR",
+   "nome": "Bernadotte",
+   "val": 1,
+   "sub": "",
+   "img": "capo_FR_x_Bernadotte"
+  },
+  {
+   "k": "l",
+   "naz": "FR",
+   "nome": "Bessieres",
+   "val": 1,
+   "sub": "",
+   "img": "capo_FR_x_Bessieres"
+  },
+  {
+   "k": "l",
+   "naz": "FR",
+   "nome": "Augereau",
+   "val": 1,
+   "sub": "",
+   "img": "capo_FR_x_Augereau"
+  },
+  {
+   "k": "l",
+   "naz": "FR",
+   "nome": "Joubert",
+   "val": 1,
+   "sub": "",
+   "img": "capo_FR_x_Joubert"
+  },
+  {
+   "k": "l",
+   "naz": "FR",
+   "nome": "Leader A",
+   "val": 1,
+   "sub": "",
+   "img": "capo_FR_x_Leader_A"
+  },
+  {
+   "k": "l",
+   "naz": "FR",
+   "nome": "Leader B",
+   "val": 1,
+   "sub": "",
+   "img": "capo_FR_x_Leader_B"
+  },
+  {
+   "k": "l",
+   "naz": "FR",
+   "nome": "Leader C",
+   "val": 1,
+   "sub": "",
+   "img": "capo_FR_x_Leader_C"
+  },
+  {
+   "k": "l",
+   "naz": "FR",
+   "nome": "Leader D",
+   "val": 1,
+   "sub": "",
+   "img": "capo_FR_x_Leader_D"
+  },
+  {
+   "k": "l",
+   "naz": "FR",
+   "nome": "Leader E",
+   "val": 1,
+   "sub": "",
+   "img": "capo_FR_x_Leader_E"
+  },
+  {
+   "k": "l",
+   "naz": "FR",
+   "nome": "Jerome",
+   "val": 1,
+   "sub": "W",
+   "img": "capo_FR_W_Jerome"
+  },
+  {
+   "k": "l",
+   "naz": "FR",
+   "nome": "Leader A",
+   "val": 0,
+   "sub": "I?",
+   "img": "capo_FR_I?_Leader_A"
+  },
+  {
+   "k": "l",
+   "naz": "FR",
+   "nome": "Joseph",
+   "val": 0,
+   "sub": "",
+   "img": "capo_FR_x_Joseph"
+  },
+  {
+   "k": "l",
+   "naz": "FR",
+   "nome": "Leader F",
+   "val": 0,
+   "sub": "",
+   "img": "capo_FR_x_Leader_F"
+  },
+  {
+   "k": "l",
+   "naz": "FR",
+   "nome": "Leader G",
+   "val": 0,
+   "sub": "",
+   "img": "capo_FR_x_Leader_G"
+  },
+  {
+   "k": "l",
+   "naz": "FR",
+   "nome": "Leader H",
+   "val": 0,
+   "sub": "",
+   "img": "capo_FR_x_Leader_H"
+  },
+  {
+   "k": "l",
+   "naz": "FR",
+   "nome": "Leader I",
+   "val": 0,
+   "sub": "",
+   "img": "capo_FR_x_Leader_I"
+  }
+ ],
+ "segnalini": {
+  "battaglia": "seg_battaglia",
+  "assedio1": "seg_assedio1",
+  "assedio3": "seg_assedio3",
+  "assedio5": "seg_assedio5",
+  "fortezza": "seg_fortezza",
+  "demoralizzato": "seg_demoralizzato",
+  "nonrifornito": "seg_nonrifornito",
+  "esilio": "seg_esilio",
+  "bandiera_FR": "seg_bandiera_FR",
+  "bandiera_AU": "seg_bandiera_AU",
+  "bandiera_PR": "seg_bandiera_PR",
+  "bandiera_RU": "seg_bandiera_RU",
+  "bandiera_EN": "seg_bandiera_EN",
+  "bandiera_SP": "seg_bandiera_SP",
+  "bandiera_TU": "seg_bandiera_TU"
+ }
+}

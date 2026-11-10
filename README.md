@@ -27,21 +27,20 @@ Si gioca qui: https://tannoiser2.github.io/War-and-Peace/ (e nella ludoteca: htt
 - **Salvataggi**: in locale a ogni cambio di lato e su Firebase (`warpeace/salvataggi/<uid>`).
 - Comandi: trascina per spostare, rotella o pizzico per lo zoom, tasto destro o due dita per ruotare (anche su iPad).
 
-## Da completare con il materiale originale
+## Tabelle e scenari
 
-Il modulo TTS non contiene la **Player-Aid Card** (tabelle di combattimento, perdite, logoramento, marcia forzata,
-effetti del terreno) né il **libretto degli scenari**. Per ora:
+- Le tabelle in `scripts/dati.gd` sono quelle ufficiali della Player-Aid Card (6ª/7ª ed., One Small Step 2019):
+  Combat Results Table, Combat Loss Chart, Attrition Table, Forced March Table, Terrain Effects Chart.
+- Scenari in `scripts/scenari.gd`: **The Sun of Austerlitz 1805** (agosto-dicembre 1805, vince il Francese con
+  almeno un PF a Vienna) e **Struggle of Nations 1813** (aprile-dicembre 1813, vince il Francese se tiene una città
+  maggiore non assediata nell'area 3), con neutrali (Austria, Svezia, satelliti), alleanze, rinforzi mensili,
+  assedi e trincee iniziali, fonti di rifornimento dello scenario.
+- L'IA segue i consigli dei giocatori esperti e del designer (articolo "Napoleon's Empire" su The General):
+  corpi di 5-10 PF, Napoleone pesato più dei suoi PF, marcia forzata per le mosse decisive, nel 1805 Ulm e poi
+  Vienna, nel 1813 fuga iniziale degli Alleati e ammassamento francese al nord se arriva l'Austria.
 
-- le tabelle in `scripts/dati.gd` sono **ricostruite** in modo coerente con gli esempi del regolamento
-  (es. 3:2 con 9 = L 1 / S D1; 13 PF: "1" = 2 perdite, "D1" = 3; logoramento 5 con 10 PF = 2*; marcia forzata +2:
-  3 = 2, 4 = 1*, 5 = 0; fiume = 2);
-- lo scenario **Austerlitz 1805** in `scripts/scenari.gd` è **ricostruito** sulla storia.
-
-Quando arrivano le tabelle e gli scenari veri basta sostituire quei dati (il formato degli scenari è pensato per
-aggiungere gli altri: Jena-Friedland, Wagram, Russia 1812, ecc.).
-
-Semplificazioni attuali: niente movimento navale né Egitto, niente contrattacco di chi viene attaccato, rinforzi in
-battaglia tentati in automatico (si spengono dal menu).
+Semplificazioni: niente movimento navale né Egitto, niente contrattacco di chi viene attaccato, rinforzi in
+battaglia tentati in automatico (si spengono dal menu), aree di mappa e montagne basse/alte ricavate dall'immagine.
 
 ## Prove
 

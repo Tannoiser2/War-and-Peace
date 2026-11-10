@@ -1,6 +1,15 @@
 ## Intelligenza artificiale: muove eserciti verso obiettivi e nemici, cerca battaglie favorevoli
 ## (rapporto di forze, capi, morale, terreno), concentra le forze come un "bataillon carré",
 ## tiene conto del logoramento e del rifornimento, decide assedi, assalti e ritirate.
+## Principi presi dalle strategie dei giocatori esperti (articolo del designer "Napoleon's Empire"
+## su The General e discussioni dei giocatori):
+## - corpi di 5-10 PF separati per contenere il logoramento, riuniti solo per la battaglia;
+## - Napoleone vale molto più dei suoi punti forza: lo si evita, si colpiscono i corpi lontani da lui;
+## - marcia forzata solo quando porta a una battaglia o a un obiettivo decisivo;
+## - nel 1805 il Francese distrugge subito l'armata di Ulm e corre su Vienna; l'Austriaco difende Vienna;
+## - nel 1813 l'Alleato scappa al primo turno, poi colpisce i corpi isolati; il Francese, se gli
+##   Alleati non sono stati spezzati quando entra l'Austria, si ammassa nelle città del nord;
+## - si trincerano i corpi fermi vicino al nemico, non si inseguono le piccole guarnigioni lontane.
 class_name IA
 extends RefCounted
 
@@ -44,7 +53,7 @@ func _movimento(rq: Dictionary) -> Dictionary:
 		var p: Dictionary = piano.pop_front()
 		var d := _concretizza(p)
 		if not d.is_empty():
-			if p["tipo"] == "cavalleria":
+			if p["tipo"] == "cavalleria" or p["tipo"] == "trincee":
 				piano.push_front(p)
 			return d
 	return {"a": "fine"}
@@ -76,13 +85,24 @@ func campo(h0: String) -> Dictionary:
 	_campi[h0] = dist
 	return dist
 
-func _forza_vicina(h0: String, lato: int, raggio: int) -> int:
-	var t := 0
+func _forza_vicina(h0: String, lato: int, raggio: int) -> float:
+	var t := 0.0
 	var c := campo(h0)
 	for h in m.esagoni_di(lato):
 		if c.get(h, 9999) <= raggio:
-			t += m.sp_in(h, lato)
+			t += forza(h, lato)
 	return t
+
+## Forza "percepita" di un esagono: Napoleone (e Wellington) la moltiplicano, i buoni capi la aumentano
+func forza(h: String, lato: int) -> float:
+	var sp := float(m.sp_in(h, lato))
+	var best := 0
+	for id in m.capi_in(h, lato):
+		best = maxi(best, int(m.s["capi"][id]["v"]))
+	var f := 1.0 + 0.08 * best
+	if best >= 3:
+		f = 1.4
+	return sp * f
 
 ## Obiettivi del lato: [esagono, valore]
 func _obiettivi(lato: int) -> Array:
@@ -111,7 +131,7 @@ func _pianifica(lato: int) -> void:
 	var capi := []
 	for id in m.s["capi"]:
 		var c: Dictionary = m.s["capi"][id]
-		if c["h"] == "" or m.lato_di(c["n"]) != lato or c["morto"]:
+		if c["h"] == "" or m.lato_capo(c) != lato or c["morto"]:
 			continue
 		capi.append(id)
 	capi.sort_custom(func(a, b):
@@ -119,10 +139,18 @@ func _pianifica(lato: int) -> void:
 		var cb: Dictionary = m.s["capi"][b]
 		return int(ca["v"]) * 100 + m.sp_in(ca["h"], lato) > int(cb["v"]) * 100 + m.sp_in(cb["h"], lato))
 	var assegnati := {}
+	# il capo migliore di ogni esagono sceglie il bersaglio, gli altri capi dello stesso esagono
+	# lo seguono (bataillon carré: corpi separati che convergono sullo stesso obiettivo)
+	var scelto_qui := {}
 	for id in capi:
 		var c: Dictionary = m.s["capi"][id]
 		var h: String = c["h"]
-		var bersaglio := _scegli_bersaglio(h, lato, obiettivi, difese, assegnati)
+		var bersaglio: Array
+		if scelto_qui.has(h):
+			bersaglio = scelto_qui[h]
+		else:
+			bersaglio = _scegli_bersaglio(h, lato, obiettivi, difese, assegnati)
+			scelto_qui[h] = bersaglio
 		if bersaglio.is_empty():
 			continue
 		assegnati[bersaglio[0]] = assegnati.get(bersaglio[0], 0) + 1
@@ -134,6 +162,7 @@ func _pianifica(lato: int) -> void:
 			piano.append({"capo": id, "da": c["h"], "verso": "", "tipo": "raggiungi"})
 	# cavalleria senza capo: con il capo più vicino o resta
 	piano.append({"capo": "", "tipo": "cavalleria"})
+	piano.append({"capo": "", "tipo": "trincee"})
 
 ## Città proprie da difendere minacciate: [esagono, minaccia]
 func _difese(lato: int) -> Array:
@@ -146,10 +175,36 @@ func _difese(lato: int) -> Array:
 			var difesa := _forza_vicina(h, lato, 2)
 			if minaccia > difesa:
 				out.append([h, float(ob[nome]) * 2.0 * float(minaccia - difesa) / float(minaccia)])
+	# città che lo scenario chiede di difendere (es. Vienna per la Coalizione nel 1805)
+	var extra: Dictionary = m.scen.get("ia", {}).get("difendi", [{}, {}])[lato]
+	for nome in extra:
+		var h := Mappa.hex(nome)
+		if m.controllore(h) == lato or m.controllore(h) < 0:
+			var minaccia := _forza_vicina(h, 1 - lato, 12)
+			var difesa := _forza_vicina(h, lato, 1)
+			if minaccia > difesa * 0.8:
+				out.append([h, float(extra[nome]) * 1.5])
 	return out
 
+func _ammassare(lato: int) -> String:
+	var lista: Array = m.scen.get("ia", {}).get("ammassa", [])
+	if lato != 0 or lista.is_empty():
+		return ""
+	var debole := float(m.sp_lato(0)) < float(m.sp_lato(1)) * 0.75
+	var austria: bool = not m.s["neutrali"].has("AU")
+	if not (debole and (austria or int(m.s["turno"]) >= 5)):
+		return ""
+	for nome in lista:
+		var h := Mappa.hex(nome)
+		if m.controllore(h) == 0 and not m.s["assedi"].has(h):
+			return h
+	return ""
+
 func _scegli_bersaglio(h: String, lato: int, obiettivi: Array, difese: Array, assegnati: Dictionary) -> Array:
-	var mia := m.sp_in(h, lato) + _forza_vicina(h, lato, 4) * 0.5
+	var rad := _ammassare(lato)
+	if rad != "" and h != rad:
+		return [rad, 10.0, "difesa"]
+	var mia := forza(h, lato) + _forza_vicina(h, lato, 4) * 0.5
 	var best := []
 	var bv := -INF
 	var c := campo(h)
@@ -161,18 +216,27 @@ func _scegli_bersaglio(h: String, lato: int, obiettivi: Array, difese: Array, as
 			continue
 		var val: float = o[1]
 		if o[2] == "esercito":
-			var sua := float(m.sp_in(t, 1 - lato)) + _forza_vicina(t, 1 - lato, 3) * 0.6
+			var sua := forza(t, 1 - lato) + _forza_vicina(t, 1 - lato, 3) * 0.6
+			# piccole guarnigioni lontane: non vale la pena inseguirle
+			if m.sp_in(t, 1 - lato) <= 2 and d > 6:
+				continue
 			var rapp := float(mia) / maxf(1.0, sua)
 			if rapp < 1.2:
 				val = -val * (1.0 if carattere < 2 else 0.4)
 			elif rapp >= 2.0:
 				val *= 1.6
 		else:
-			var dif := float(m.sp_in(t, 1 - lato)) + _forza_vicina(t, 1 - lato, 3) * 0.6
-			if dif > mia * 0.8:
-				val *= 0.3
+			var dif := forza(t, 1 - lato) + _forza_vicina(t, 1 - lato, 3) * 0.6
+			var amici := _forza_vicina(h, lato, 6)
+			if dif > maxf(mia, amici * 0.7) * 0.9:
+				val *= 0.35
+			# col passare dei mesi le città obiettivo contano sempre di più
+			val *= 1.0 + float(m.s["turno"]) / float(m.scen["turni"])
 		val -= assegnati.get(t, 0) * 1.5
 		var score := val * 10.0 / (6.0 + d)
+		# obiettivo decisivo (es. Vienna): lo si insegue anche da lontano
+		if o[2] == "citta" and float(o[1]) >= 30.0:
+			score = val * 10.0 / (6.0 + d * 0.4)
 		if score > bv:
 			bv = score
 			best = [t, val, o[2]]
@@ -187,7 +251,7 @@ func _scegli_bersaglio(h: String, lato: int, obiettivi: Array, difese: Array, as
 			best = [t, dfn[1], "difesa"]
 	# troppo debole: si ritira verso le forze amiche più grandi
 	var minaccia := _forza_vicina(h, 1 - lato, 4)
-	if minaccia > mia * 1.6 and m.sp_in(h, lato) > 0:
+	if minaccia > mia * 1.5 and m.sp_in(h, lato) > 0:
 		var rif := _rifugio(h, lato)
 		if rif != "":
 			return [rif, 0.0, "ritirata"]
@@ -217,6 +281,8 @@ func _concretizza(p: Dictionary) -> Dictionary:
 	var lato: int = m.s["lato"]
 	if p["tipo"] == "cavalleria":
 		return _cavalleria_sola(lato)
+	if p["tipo"] == "trincee":
+		return _trincee(lato)
 	var capo: String = p["capo"]
 	if not m.s["capi"].has(capo):
 		return {}
@@ -248,8 +314,14 @@ func _concretizza(p: Dictionary) -> Dictionary:
 	var rag2 := m.raggiungibili(capo, porta, fm)
 	if rag2.is_empty():
 		return {}
-	var d := _verso_migliore(capo, porta, rag2, campo(verso), lato, verso, p["tipo"] == "esercito")
+	var decisivo := float(_valore_obiettivo(verso, lato)) >= 8.0
+	if decisivo and not inverno_freddo():
+		rag2 = m.raggiungibili(capo, porta, 3 if carattere > 0 else 2)
+	var d := _verso_migliore(capo, porta, rag2, campo(verso), lato, verso, p["tipo"] == "esercito", decisivo)
 	return d
+
+func _valore_obiettivo(h: String, lato: int) -> int:
+	return int(m.scen["obiettivi"][lato].get(Mappa.nome_citta(h), 0)) if Mappa.ha_citta(h) else 0
 
 func inverno_freddo() -> bool:
 	return m.inverno()
@@ -300,7 +372,8 @@ func _truppe(capo: String, h: String, lato: int) -> Dictionary:
 	return porta
 
 ## Sceglie la destinazione fra quelle raggiungibili: più vicina al bersaglio, con buone battaglie
-func _verso_migliore(capo: String, porta: Dictionary, rag: Dictionary, cd: Dictionary, lato: int, bersaglio: String, attacca: bool) -> Dictionary:
+func _verso_migliore(capo: String, porta: Dictionary, rag: Dictionary, cd: Dictionary, lato: int, bersaglio: String, attacca: bool, decisivo := false) -> Dictionary:
+	var vio: Dictionary = m.scen.get("violazione", {})
 	var best := ""
 	var bv := -INF
 	var g := m.info_gruppo(capo, porta)
@@ -313,7 +386,10 @@ func _verso_migliore(capo: String, porta: Dictionary, rag: Dictionary, cd: Dicti
 			continue
 		var v := float(d0 - d) * 2.0
 		# marcia forzata: costa logoramento e rischio
-		v -= float(r["fm"]) * 2.4
+		v -= float(r["fm"]) * (1.2 if decisivo else 2.4)
+		# non violare un neutrale che potrebbe entrare in guerra
+		if not vio.is_empty() and lato == int(vio["lato"]) and Mappa.stato(h) in vio["stati"] and not m.s["in_guerra"].has(Mappa.stato(h)):
+			v -= 8.0
 		if m.nemico_fuori(h, lato):
 			v += 6.0  # travolgimento
 		# vicino al nemico: buono se il rapporto è favorevole
@@ -374,6 +450,16 @@ func _truppe_senza_capo(h0: String, lato: int, naz: String) -> String:
 			best = h
 	return best
 
+## Trincera i corpi fermi minacciati dal nemico (non nelle città maggiori)
+func _trincee(lato: int) -> Dictionary:
+	for h in m.esagoni_di(lato):
+		if not m.puo_trincerare(h):
+			continue
+		var minaccia := _forza_vicina(h, 1 - lato, 4)
+		if minaccia > 0 and minaccia >= forza(h, lato) * 0.7:
+			return {"a": "trincea", "h": h}
+	return {}
+
 func _cavalleria_sola(lato: int) -> Dictionary:
 	# la cavalleria senza capo raggiunge il capo amico più vicino
 	for id in m.s["unita"]:
@@ -403,6 +489,9 @@ func _cavalleria_sola(lato: int) -> Dictionary:
 func _stima(da: String, su: String, lato: int) -> float:
 	var mia := float(m.sp_in(da, lato, true))
 	var sua := float(m.sp_in(su, 1 - lato, true))
+	for id in m.capi_in(su, 1 - lato):
+		if int(m.s["capi"][id]["v"]) >= 3:
+			sua *= 1.25
 	if da == su or (sua == 0 and m.sp_in(su, 1 - lato, false, true) > 0):
 		sua = float(m.sp_in(su, 1 - lato, false, true)) * 2.0
 	# rinforzi probabili
@@ -449,7 +538,11 @@ func _dichiara(rq: Dictionary) -> Dictionary:
 			var dif := m.sp_in(p[1], 1 - lato)
 			if dif <= Dati.capienza(Mappa.tipo_citta(p[1])) and m.sp_in(p[0], lato, true) < dif * 2:
 				continue
-		if st >= soglia and st > bv:
+		var s2 := soglia
+		# con Napoleone al comando si attacca anche alla pari (soprattutto Prussiani e Austriaci)
+		if _miglior_capo(p[0], lato) >= 3:
+			s2 -= 0.3
+		if st >= s2 and st > bv:
 			bv = st
 			best = p
 	if not best.is_empty():

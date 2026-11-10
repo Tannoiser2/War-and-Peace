@@ -34,5 +34,11 @@ Dopo ogni round: l'attaccante decide se continuare, il difensore se ritirarsi, p
 [b]Capi[/b]: alla fine del combattimento ogni capo che ha partecipato tira due dadi: con 12 è ferito (torna dopo 1-5 mesi) o, con un altro 6, ucciso.
 
 [b]Note sulla versione digitale[/b]
-Il modulo di Tabletop Simulator contiene la mappa, le pedine e il regolamento, ma non la tabella dei combattimenti, quella delle perdite, del logoramento, della marcia forzata e degli effetti del terreno, né il libretto degli scenari. Le tabelle usate qui sono [b]ricostruite[/b] in modo coerente con gli esempi del regolamento e lo scenario del 1805 è [b]ricostruito[/b] sulla storia: appena saranno disponibili le tabelle e gli scenari originali verranno sostituiti.
-Semplificazioni: niente movimento navale, niente contrattacchi di chi viene attaccato, i rinforzi in battaglia si tentano in automatico (si possono spegnere nel menu)."""
+Le tabelle (combattimento, perdite, logoramento, marcia forzata, terreno) sono quelle ufficiali della Player-Aid Card della 6ª/7ª edizione. Gli scenari sono quelli ufficiali: «The Sun of Austerlitz 1805» e «Struggle of Nations 1813».
+Terreno: foresta 2 PM, palude e lago 2 (terreno aperto d'inverno), montagna bassa 2, alta 3; in battaglia campale chi è attaccato in foresta o palude ha ±1, in montagna ±2, e ±2 se attaccato da oltre un fiume. Ogni città costa 1 PM.
+Semplificazioni: niente movimento navale né Egitto, niente contrattacchi di chi viene attaccato, i rinforzi in battaglia si tentano in automatico (si possono spegnere nel menu). I fiumi sono sui lati degli esagoni come li disegna la mappa.
+
+[b]Consigli dei giocatori esperti[/b]
+Muovi in corpi di 5-10 PF per contenere il logoramento e riuniscili solo per la battaglia. Usa la marcia forzata solo quando porta a una battaglia o a un obiettivo decisivo. Napoleone vale molto più dei suoi punti forza: l'avversario colpisce i corpi lontani da lui. Non inseguire le piccole guarnigioni lontane e proteggi la linea di rifornimento.
+1805: il Francese deve distruggere l'armata di Ulm nei primi due turni e poi correre su Vienna prima dei Russi; l'Austriaco può ritardare sul Danubio, correre a Vienna o ritirarsi sulle montagne di Innsbruck per minacciare i rifornimenti francesi.
+1813: per il Francese è molto difficile; deve scegliere un obiettivo e andarci con tutto, e se gli Alleati non sono spezzati quando entra l'Austria, ammassarsi nelle città del nord (Magdeburgo, Amburgo, Hannover). L'Alleato scappa al primo turno, poi colpisce le guarnigioni e i corpi isolati, lontano da Napoleone."""

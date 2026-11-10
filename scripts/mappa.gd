@@ -9,6 +9,8 @@ static var per_nome := {}
 static var larg := 4096.0
 static var alt := 3226.0
 static var W := 64.2
+## d'inverno paludi e laghi contano come terreno aperto (lo imposta il motore)
+static var inverno := false
 
 static func carica() -> void:
 	if not esagoni.is_empty():
@@ -81,7 +83,12 @@ static func fiume_tra(a: String, b: String) -> bool:
 
 ## Costo per entrare in b provenendo da a
 static func costo(a: String, b: String) -> int:
-	var c: int = Dati.COSTO_TERRENO.get(terreno(b), 1)
+	var t := terreno(b)
+	if inverno and t == "palude":
+		t = "pianura"
+	var c: int = Dati.COSTO_TERRENO.get(t, 1)
+	if ha_citta(b):
+		c = 1
 	if fiume_tra(a, b):
 		c += Dati.COSTO_FIUME
 	return c

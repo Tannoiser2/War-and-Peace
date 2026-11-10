@@ -5,11 +5,12 @@ extends SceneTree
 func _init() -> void:
 	var args := OS.get_cmdline_user_args()
 	var n := int(args[0]) if args.size() > 0 else 3
+	var sc: String = args[1] if args.size() > 1 else "1805"
 	var vinte := {-1: 0, 0: 0, 1: 0}
 	var t0 := Time.get_ticks_msec()
 	for p in n:
 		var mo := Motore.new()
-		mo.nuova({"seed": p * 7919 + 3})
+		mo.nuova({"seed": p * 7919 + 3, "scen": sc})
 		var ia := [IA.new(mo), IA.new(mo)]
 		var passi := 0
 		var conta := {}

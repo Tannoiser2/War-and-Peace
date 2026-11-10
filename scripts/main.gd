@@ -16,7 +16,7 @@ const C_ORO := Color(0.87, 0.71, 0.36)
 const C_SPENTO := Color(0.46, 0.37, 0.28)
 const C_ROSSO := Color(0.66, 0.1, 0.08)
 const C_BLU := Color(0.17, 0.3, 0.6)
-const COL_LATO := [Color(0.25, 0.42, 0.78), Color(0.72, 0.16, 0.12)]
+const COL_LATO := [Color(0.25, 0.42, 0.78), Color(0.72, 0.16, 0.12), Color(0.45, 0.42, 0.38)]
 const SALVA_LOCALE := "user://partita_warpeace.json"
 ## scala: un pixel della mappa = 0.01 unità del mondo 3D
 const SC := 0.01
@@ -92,6 +92,7 @@ var on_nome: LineEdit
 var on_codice: LineEdit
 var on_stato: Label
 var on_lato: OptionButton
+var on_scen: OptionButton
 var lobby_box: VBoxContainer
 
 func _ready() -> void:
@@ -415,7 +416,7 @@ func _aggiorna_pezzi() -> void:
 	for id in m.s["capi"]:
 		var c: Dictionary = m.s["capi"][id]
 		if c["h"] != "":
-			gruppi["%s|%d|false" % [c["h"], m.lato_di(c["n"])]] = true
+			gruppi["%s|%d|false" % [c["h"], m.lato_capo(c)]] = true
 	for k in gruppi:
 		var p: PackedStringArray = k.split("|")
 		var h := p[0]
@@ -712,7 +713,7 @@ func _mostra_tip(h: String, pos: Vector2) -> void:
 		righe.append("%s%s" % [{"capitale": "Capitale", "maggiore": "Città maggiore", "minore": "Città minore"}[Mappa.tipo_citta(h)],
 			(", controllata da: " + Dati.LATI[ctl]) if ctl >= 0 else ""])
 	righe.append("Terreno: %s, area %d" % [Dati.NOMI_TERRENO.get(Mappa.terreno(h), ""), Mappa.area(h)])
-	for l in [0, 1]:
+	for l in [0, 1, 2]:
 		var sp := m.sp_in(h, l)
 		var capi := []
 		for id in m.capi_in(h, l):
@@ -784,16 +785,33 @@ func _aggiorna_pezzi_vuoti() -> void:
 
 var scelta_lato := 0
 var scelta_modo := "ia"
+var scelta_scen := "1805"
 
 func _menu_nuova() -> void:
 	pulisci()
 	_sfondo()
-	var sc: Dictionary = Scenari.dati("1805")
-	var v := _scheda_centrale(900, 760)
-	v.add_child(etichetta(sc["titolo"], F_TITOLO, 44, C_BORDEAUX))
-	v.add_child(etichetta(sc["sottotitolo"], F_CORSIVO, 24, C_INCHIOSTRO))
+	var sc: Dictionary = Scenari.dati(scelta_scen)
+	var v := _scheda_centrale(960, 820)
+	var rs := HBoxContainer.new()
+	rs.add_theme_constant_override("separation", 10)
+	v.add_child(rs)
+	var gs := ButtonGroup.new()
+	for id in Scenari.ELENCO:
+		var b := Button.new()
+		b.text = Scenari.dati(id)["titolo"]
+		b.toggle_mode = true
+		b.button_group = gs
+		b.button_pressed = id == scelta_scen
+		b.add_theme_font_size_override("font_size", 20)
+		var sid: String = id
+		b.pressed.connect(func():
+			scelta_scen = sid
+			_menu_nuova())
+		rs.add_child(b)
+	v.add_child(etichetta(sc["titolo"], F_TITOLO, 42, C_BORDEAUX))
+	v.add_child(etichetta(sc["sottotitolo"], F_CORSIVO, 23, C_INCHIOSTRO))
 	v.add_child(etichetta(sc["descrizione"], F_TESTO, 19))
-	v.add_child(etichetta("Cinque turni mensili, da settembre 1805 a gennaio 1806. " + sc["vittoria"], F_TESTO, 17, C_SPENTO))
+	v.add_child(etichetta(sc.get("durata", "") + " " + sc["vittoria"], F_TESTO, 16, C_SPENTO))
 	v.add_child(HSeparator.new())
 	var r := HBoxContainer.new()
 	r.add_theme_constant_override("separation", 10)
@@ -840,7 +858,7 @@ func _avvia_locale() -> void:
 		_:
 			umani = [false, false]
 	m = Motore.new()
-	m.nuova({"scen": "1805", "seed": int(Time.get_unix_time_from_system()) % 1000000})
+	m.nuova({"scen": scelta_scen, "seed": int(Time.get_unix_time_from_system()) % 1000000})
 	_prepara_ia()
 	_apri_partita()
 	_salva(true)
@@ -928,6 +946,13 @@ func _menu_online() -> void:
 	on_lato.add_item("Francia")
 	on_lato.add_item("Coalizione")
 	r0.add_child(on_lato)
+	var r00 := HBoxContainer.new()
+	v.add_child(r00)
+	r00.add_child(riga_lbl("Scenario:  ", F_GRASSETTO, 21))
+	on_scen = OptionButton.new()
+	for id in Scenari.ELENCO:
+		on_scen.add_item(Scenari.dati(id)["titolo"])
+	r00.add_child(on_scen)
 	v.add_child(bottone("Crea una stanza", _online_crea, 24))
 	var r2 := HBoxContainer.new()
 	v.add_child(r2)
@@ -952,7 +977,7 @@ func _online_crea() -> void:
 	on_stato.text = "Creo la stanza..."
 	net._save({"name": on_nome.text})
 	var lato := on_lato.selected
-	var c := await net.create_room(on_nome.text, {"lato": lato})
+	var c := await net.create_room(on_nome.text, {"lato": lato, "scen": Scenari.ELENCO[on_scen.selected]})
 	if c == "":
 		on_stato.text = "Non riesco a creare la stanza: " + net.last_error
 		return
@@ -1013,7 +1038,7 @@ func _online_inizia() -> void:
 	lati[lato_host] = 0
 	if seats.has("1"):
 		lati[1 - lato_host] = 1
-	var game := {"seed": int(Time.get_unix_time_from_system()) % 1000000, "lati": lati, "scen": "1805"}
+	var game := {"seed": int(Time.get_unix_time_from_system()) % 1000000, "lati": lati, "scen": str(cfg.get("scen", "1805")) if cfg is Dictionary else "1805"}
 	if not await net.start_room(codice, game):
 		on_stato.text = "Non riesco a iniziare: " + net.last_error
 		return
@@ -1069,7 +1094,7 @@ func _apri_partita() -> void:
 		if _chi(l) == "io":
 			for id in m.s["capi"]:
 				var c: Dictionary = m.s["capi"][id]
-				if m.lato_di(c["n"]) == l and c["h"] != "" and c["nome"] in ["Napoleon", "Mack", "Charles", "Kutusov"]:
+				if m.lato_capo(c) == l and c["h"] != "" and c["nome"] in ["Napoleon", "Mack", "Charles", "Kutusov", "Blucher", "Wittgenstein"]:
 					_centra_su(c["h"], 15.0)
 					break
 			break
@@ -1365,7 +1390,7 @@ func _info_esagono(h: String) -> void:
 	if m.s["assedi"].has(h):
 		riga += "\nAssedio, livello %d" % int(m.s["assedi"][h]["l"])
 	pannello_info.add_child(etichetta(riga, F_TESTO, 18))
-	for l in [0, 1]:
+	for l in [0, 1, 2]:
 		var capi := m.capi_in(h, l)
 		var ids := m.unita_in(h, l)
 		if capi.is_empty() and ids.is_empty():

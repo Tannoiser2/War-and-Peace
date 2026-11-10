@@ -18,6 +18,7 @@ func _run():
 		quit(); return
 	main.scelta_modo = "ia"
 	main.scelta_lato = 0
+	main.scelta_scen = OS.get_environment("WP_SCEN") if OS.get_environment("WP_SCEN") != "" else "1805"
 	main._avvia_locale()
 	await shot("partita")
 	if modo == "partita":

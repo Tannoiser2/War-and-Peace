@@ -32,8 +32,10 @@ func nuova(cfg: Dictionary) -> void:
 		"controllo": {}, "assedi": {}, "trincee": {}, "pv": [0, 0],
 		"in_guerra": scen["in_guerra"].duplicate(), "aperti": [], "alleanza": "", "batt": [], "cb": {},
 		"log": [], "esito": {}, "sp_inizio": {}, "rifornimento": {}, "opzioni": cfg.get("opzioni", {}),
-		"azioni": 0, "coinvolti_capi": {},
+		"azioni": 0, "coinvolti_capi": {}, "neutrali": scen.get("neutrali", []).duplicate(),
+		"alleanze_fatte": [],
 	}
+	Mappa.inverno = inverno()
 	_aggiorna_aperti()
 	# controllo iniziale delle città: quello della regione (se in guerra), poi le eccezioni
 	for h in Mappa.esagoni:
@@ -45,30 +47,78 @@ func nuova(cfg: Dictionary) -> void:
 		s["controllo"][Mappa.hex(nome)] = int(scen["controllo"][nome])
 	for gruppo in scen["schieramento"]:
 		_schiera(gruppo)
+	# assedi e trincee iniziali
+	for a in scen.get("assedi", []):
+		var ha := Mappa.hex(a[0])
+		for id in unita_in(ha):
+			if lato_unita(s["unita"][id]) != int(a[1]):
+				s["unita"][id]["in"] = true
+		s["assedi"][ha] = {"l": 0, "lato": int(a[1])}
+	for t in scen.get("trincee", []):
+		var ht := _risolvi_hex(t[0])
+		if ht != "":
+			s["trincee"][ht] = int(t[1])
 	for h in s["controllo"].keys():
 		_aggiorna_controllo(h)
 	_log("[b]%s[/b] — %s %d" % [scen["titolo"], Dati.MESI[s["mese"]], s["anno"]])
 	_inizia_segmento()
 
+## Esagono di uno schieramento: "Città", "Città+n" (un vicino a nord), "Città>" (un vicino libero)
+func _risolvi_hex(nome: String) -> String:
+	var base := nome.trim_suffix("+n").trim_suffix(">").trim_suffix("+e")
+	var h := Mappa.hex(base)
+	if h == "" or base == nome:
+		return h
+	var best := ""
+	var bv := INF
+	for v in Mappa.vicini(h):
+		var n: String = v[0]
+		if Mappa.ha_citta(n):
+			continue
+		var p := Mappa.pos(n) - Mappa.pos(h)
+		var val := 0.0
+		if nome.ends_with("+n"):
+			val = p.y
+		elif nome.ends_with("+e"):
+			val = -p.x
+		else:
+			val = float(unita_in(n).size()) * 10.0 + (0.0 if Mappa.stato(n) == Mappa.stato(h) else 5.0) + (50.0 if not aperto(n) else 0.0)
+		if val < bv:
+			bv = val
+			best = n
+	return best if best != "" else h
+
 func _schiera(gruppo: Dictionary) -> void:
-	var h := Mappa.hex(gruppo["hex"])
+	var h := _risolvi_hex(str(gruppo["hex"]))
 	if h == "":
 		push_error("città sconosciuta " + str(gruppo["hex"]))
 		return
 	for c in gruppo["capi"]:
 		var p: PackedStringArray = str(c).split(":")
-		_nuovo_capo(p[0], p[1], h)
+		_nuovo_capo(p[0], p[1], h, p[2] if p.size() > 2 else "")
 	for u in gruppo["unita"]:
 		_nuova_unita(u[0], u[1], u[2], int(u[3]), h)
 
-func _nuovo_capo(naz: String, nome: String, h: String) -> String:
+## nome "@0" o "@1": un capo generico ("Leader") di quel valore; sub: stato minore del capo
+func _nuovo_capo(naz: String, nome: String, h: String, sub := "") -> String:
+	var generico := nome.begins_with("@")
+	var val := int(nome.substr(1)) if generico else -1
 	for c in catalogo["capi"]:
-		if c["naz"] == naz and c["nome"] == nome and not _capo_usato(c["img"]):
-			var id := "c%d" % s["prossimo"]
-			s["prossimo"] += 1
-			s["capi"][id] = {"nome": nome, "n": naz, "s": c["sub"] if c["sub"] != "I?" else "", "v": int(c["val"]),
-				"h": h, "mp": 0, "fuori": 0, "morto": false, "img": c["img"]}
-			return id
+		if c["naz"] != naz or _capo_usato(c["img"]):
+			continue
+		if generico:
+			if not str(c["nome"]).begins_with("Leader") or int(c["val"]) != val:
+				continue
+		elif c["nome"] != nome:
+			continue
+		var id := "c%d" % s["prossimo"]
+		s["prossimo"] += 1
+		var sc: String = c["sub"] if c["sub"] != "I?" else ""
+		if sub != "":
+			sc = sub
+		s["capi"][id] = {"nome": c["nome"], "n": naz, "s": sc, "v": int(c["val"]),
+			"h": h, "mp": 0, "fuori": 0, "morto": false, "img": c["img"]}
+		return id
 	push_error("capo non trovato %s %s" % [naz, nome])
 	return ""
 
@@ -121,8 +171,16 @@ func _log(t: String) -> void:
 func lato_di(naz: String) -> int:
 	return int(scen["lati"].get(naz, -1))
 
+## 2 = neutrale (le sue unità non muovono, non combattono e bloccano il passaggio)
 func lato_unita(u: Dictionary) -> int:
+	if s.get("neutrali", []).has(u["n"]) or (u["s"] != "" and s.get("neutrali", []).has(u["s"])):
+		return 2
 	return lato_di(u["n"])
+
+func lato_capo(c: Dictionary) -> int:
+	if s.get("neutrali", []).has(c["n"]) or (c["s"] != "" and s.get("neutrali", []).has(c["s"])):
+		return 2
+	return lato_di(c["n"])
 
 func nome_lato(l: int) -> String:
 	return Dati.LATI[l]
@@ -136,9 +194,37 @@ func finita() -> bool:
 func _aggiorna_aperti() -> void:
 	s["aperti"] = s["in_guerra"].duplicate()
 
-## Un esagono è percorribile da un lato se il suo stato è in guerra (i neutrali sono chiusi)
+## Un esagono è percorribile se il suo stato è in guerra (i neutrali sono chiusi). Negli scenari
+## con "chiusi_se_neutrali" tutto è aperto tranne gli stati di una nazione ancora neutrale.
 func aperto(h: String) -> bool:
-	return Mappa.stato(h) in s["aperti"]
+	var st := Mappa.stato(h)
+	if scen.has("chiusi_se_neutrali"):
+		var ch: Dictionary = scen["chiusi_se_neutrali"]
+		for code in ch:
+			if s["neutrali"].has(code) and st in ch[code]:
+				if Mappa.area(h) == 2 and st in scen.get("aperti_area2", []):
+					continue
+				return false
+		return true
+	if st in scen.get("aperti_lato", {}).get(str(s["lato"]), []) and not s["in_guerra"].has(st):
+		return true
+	return st in s["aperti"]
+
+## Si può entrare nell'esagono? Niente stati chiusi né esagoni con unità neutrali
+func entrabile(h: String, porta: Dictionary = {}) -> bool:
+	if sp_in(h, 2) > 0:
+		return false
+	if aperto(h):
+		return true
+	# permessi speciali (es. i Polacchi possono attraversare l'Austria neutrale, ma non le sue città)
+	var perm: Dictionary = scen.get("permessi", {})
+	if porta.is_empty() or Mappa.ha_citta(h):
+		return false
+	for id in porta:
+		var u: Dictionary = s["unita"].get(id, {})
+		if u.is_empty() or not perm.has(u["s"]) or not Mappa.stato(h) in perm[u["s"]]:
+			return false
+	return true
 
 func unita_in(h: String, lato := -1, solo_fuori := false) -> Array:
 	var out := []
@@ -152,7 +238,7 @@ func capi_in(h: String, lato := -1) -> Array:
 	var out := []
 	for id in s["capi"]:
 		var c: Dictionary = s["capi"][id]
-		if c["h"] == h and (lato < 0 or lato_di(c["n"]) == lato):
+		if c["h"] == h and (lato < 0 or lato_capo(c) == lato):
 			out.append(id)
 	return out
 
@@ -241,6 +327,12 @@ func _fonte_citta(h: String, naz: String, lato: int) -> bool:
 		return false
 	if controllore(h) != lato:
 		return false
+	if scen.has("fonti"):
+		var f: Dictionary = scen["fonti"].get(str(lato), {})
+		var ok2: bool = Mappa.nome_citta(h) in f.get("citta", []) or Mappa.stato(h) in f.get("stati", [])
+		if f.get("patria", false) and Mappa.stato(h) == naz:
+			ok2 = true
+		return ok2 and sp_in(h, 1 - lato, true) == 0
 	var st := Mappa.stato(h)
 	var case_ := [naz]
 	case_.append_array(scen.get("fonti_extra", {}).get(naz, []))
@@ -304,7 +396,7 @@ func _entro(da: String, mp: int, lato: int) -> Dictionary:
 			continue
 		for v in Mappa.vicini(h):
 			var n: String = v[0]
-			if not aperto(n):
+			if not aperto(n) or sp_in(n, 2) > 0:
 				continue
 			var d: int = dist[h] + Mappa.costo(h, n)
 			if d <= mp and d < dist.get(n, 999):
@@ -327,6 +419,7 @@ func _inizia_segmento() -> void:
 		s["unita"][id]["mo"] = false
 	for id in s["capi"]:
 		s["capi"][id]["mp"] = 0
+	Mappa.inverno = inverno()
 	calcola_rifornimento(l)
 	if s["turno"] > 1:
 		_fase_logoramento()
@@ -363,7 +456,7 @@ func _fase_logoramento() -> void:
 		if pf < 3:
 			continue
 		var t := tiro
-		if tutti_fr: t -= 1
+		if tutti_fr and not scen.get("francesi_ridotti", false): t -= 1
 		if tutti_casa: t -= 1
 		if senza: t += 1
 		if inverno(): t += 1
@@ -389,12 +482,15 @@ func _a_casa(u: Dictionary, h: String) -> bool:
 	return st == u["n"]
 
 func _fase_alleanze() -> void:
+	if scen.has("alleanze_1813"):
+		_alleanze_1813()
+		return
 	var al: Dictionary = scen.get("alleanza", {})
 	if al.is_empty() or s["alleanza"] != "":
 		return
 	var l: int = s["lato"]
 	var tiro := dado()
-	var mod := clampi(int(s["pv"][1]) - int(s["pv"][0]), -4, 4)
+	var mod := clampi(punti(1)["tot"] - punti(0)["tot"], -4, 4)
 	var t := clampi(tiro + mod, 0, 7)
 	eventi.append({"k": "dado", "titolo": "Alleanze", "dadi": [tiro]})
 	var naz: String = Dati.NAZ[al["nazione"]]["nome"]
@@ -407,7 +503,9 @@ func _fase_alleanze() -> void:
 		for h in Mappa.esagoni:
 			if Mappa.ha_citta(h) and Mappa.stato(h) in al["stati"] and sp_in(h, 1 - l) == 0:
 				s["controllo"][h] = l
-		for g in al["schieramento"]:
+		for code in al.get("codici", []):
+			s["neutrali"].erase(code)
+		for g in al.get("schieramento", []):
 			_schiera(g)
 		_log("[b]Alleanze[/b] (dado %d, modificato %d): la %s entra in guerra con la Coalizione!" % [tiro, t, naz])
 		eventi.append({"k": "annuncio", "t": "La %s entra in guerra!" % naz})
@@ -420,11 +518,14 @@ func _fase_alleanze() -> void:
 
 func _fase_rinforzi() -> void:
 	var l: int = s["lato"]
-	var lista: Array = scen.get("rinforzi", {}).get(str(s["turno"]), [])
+	var lista: Array = scen.get("rinforzi", {}).get(str(s["turno"]), []).duplicate()
+	lista.append_array(scen.get("ogni_turno", []))
 	for g in lista:
-		var h := Mappa.hex(g["hex"])
+		var h := _risolvi_hex(str(g["hex"]))
 		var naz: String = g["unita"][0][0] if not g["unita"].is_empty() else str(g["capi"][0]).split(":")[0]
-		if lato_di(naz) != l:
+		if lato_di(naz) != l or s["neutrali"].has(naz):
+			continue
+		if scen.get("rinforzi_persi", false) and (nemico_fuori(h, l) or controllore(h) != l):
 			continue
 		if nemico_fuori(h, l) or controllore(h) != l:
 			# città occupata: i rinforzi arrivano nella città amica più vicina
@@ -436,7 +537,7 @@ func _fase_rinforzi() -> void:
 	# capi feriti che tornano
 	for id in s["capi"]:
 		var c: Dictionary = s["capi"][id]
-		if c["h"] == "" and not c["morto"] and lato_di(c["n"]) == l and int(c["fuori"]) > 0 and int(c["fuori"]) <= int(s["turno"]):
+		if c["h"] == "" and not c["morto"] and lato_capo(c) == l and int(c["fuori"]) > 0 and int(c["fuori"]) <= int(s["turno"]):
 			var dove := _hex_amico_per_capo(c["n"], l)
 			if dove != "":
 				c["h"] = dove
@@ -444,9 +545,11 @@ func _fase_rinforzi() -> void:
 				_log("%s rientra in servizio a %s." % [c["nome"], Mappa.nome(dove)])
 
 func _schiera_in(g: Dictionary, h: String) -> void:
-	var g2 := g.duplicate()
-	g2["hex"] = Mappa.nome_citta(h)
-	_schiera(g2)
+	for c in g["capi"]:
+		var p: PackedStringArray = str(c).split(":")
+		_nuovo_capo(p[0], p[1], h, p[2] if p.size() > 2 else "")
+	for u in g["unita"]:
+		_nuova_unita(u[0], u[1], u[2], int(u[3]), h)
 
 func _citta_amica_vicina(h0: String, l: int) -> String:
 	var best := ""
@@ -543,7 +646,7 @@ func info_gruppo(capo: String, porta: Dictionary) -> Dictionary:
 		if not s["capi"].has(capo):
 			return {"ok": false, "errore": "capo inesistente"}
 		var c: Dictionary = s["capi"][capo]
-		if lato_di(c["n"]) != l or c["h"] == "":
+		if lato_capo(c) != l or c["h"] == "":
 			return {"ok": false, "errore": "capo non disponibile"}
 		h = c["h"]
 		out["mp_capo"] = mp_capo(capo) - int(c["mp"])
@@ -626,7 +729,7 @@ func raggiungibili(capo: String, porta: Dictionary, fm_max := 3) -> Dictionary:
 		coda.remove_at(bi)
 		for v in Mappa.vicini(h):
 			var n: String = v[0]
-			if not aperto(n):
+			if not entrabile(n, porta):
 				continue
 			var c := Mappa.costo(h, n)
 			if nemico_fuori(n, l):
@@ -668,7 +771,7 @@ func _travolge(h: String, forza: int, cav: int) -> int:
 	if cav_dif > 0 and cav < cav_dif:
 		return -1
 	var minimo := 4
-	if Mappa.terreno(h) == "montagna" or s["trincee"].has(h):
+	if Mappa.terreno(h).begins_with("montagna") or s["trincee"].has(h):
 		minimo = 5
 	if forza >= dif * 6:
 		return 0
@@ -731,7 +834,7 @@ func _muovi(d: Dictionary) -> bool:
 			if not rifornita(u, l):
 				senza = true
 		if tutti_fr and tutti_guardia: t -= 2
-		elif tutti_fr: t -= 1
+		elif tutti_fr and not scen.get("francesi_ridotti", false): t -= 1
 		if senza: t += 1
 		if Mappa.area(da) in [1, 4]: t += 1
 		if inverno(): t += 1
@@ -794,6 +897,13 @@ func _muovi(d: Dictionary) -> bool:
 	if sp_in(da, l) == 0:
 		s["trincee"].erase(da)
 	_aggiorna_controllo(arrivo)
+	var vio: Dictionary = scen.get("violazione", {})
+	if not vio.is_empty() and l == int(vio["lato"]) and not s.get("violato", false):
+		for h in strada:
+			if Mappa.stato(h) in vio["stati"] and not s["in_guerra"].has(Mappa.stato(h)):
+				s["violato"] = true
+				_log("[b]Le truppe francesi violano il territorio prussiano[/b]: +1 punto città alla Coalizione.")
+				break
 	var chi: String = s["capi"][capo]["nome"] if capo != "" else "Cavalleria"
 	var quanti := 0
 	for id in mobili:
@@ -1202,7 +1312,10 @@ func _risolvi_round(b: Dictionary) -> void:
 	mods.append(["Morale", mg - mp])
 	if b["tipo"] == "campo":
 		var tm := 0
-		var t: int = Dati.MOD_TERRENO.get(Mappa.terreno(b["dif"]), 0)
+		var terr := Mappa.terreno(b["dif"])
+		if inverno() and terr == "palude":
+			terr = "pianura"
+		var t: int = Dati.MOD_TERRENO.get(terr, 0)
 		if Mappa.fiume_tra(b["att"], b["dif"]):
 			t += Dati.MOD_FIUME
 		if s["trincee"].has(b["dif"]) and int(s["trincee"][b["dif"]]) == ld:
@@ -1221,7 +1334,7 @@ func _risolvi_round(b: Dictionary) -> void:
 	if rap == "4:1":
 		rp = "D3"
 	else:
-		var r: Array = Dati.CRT[rap][tiro - 2]
+		var r: Array = Dati.crt(rap, tiro)
 		rg = r[0]
 		rp = r[1]
 	var piccola_sp := _sp_battaglia(b, piccola)
@@ -1659,7 +1772,7 @@ func _fine_combattimento() -> void:
 # Vittoria
 
 func punti(lato: int) -> Dictionary:
-	var ob: Dictionary = scen["obiettivi"][lato]
+	var ob: Dictionary = scen.get("punti_citta", scen["obiettivi"])[lato]
 	var citta := 0
 	var elenco := []
 	for nome in ob:
@@ -1667,18 +1780,82 @@ func punti(lato: int) -> Dictionary:
 		if controllore(h) == lato:
 			citta += int(ob[nome])
 			elenco.append(nome)
+	if lato == 1 and s.get("violato", false):
+		citta += 1
+		elenco.append("territorio prussiano violato")
+	if lato == 1 and scen.get("punti_area2_coalizione", false):
+		for h in s["controllo"]:
+			if Mappa.area(h) == 2 and controllore(h) == 1 and not elenco.has(Mappa.nome_citta(h)):
+				citta += 1
+				elenco.append(Mappa.nome_citta(h))
 	return {"battaglie": int(s["pv"][lato]), "citta": citta, "tot": int(s["pv"][lato]) + citta, "elenco": elenco}
 
-func _controlla_vittoria_immediata() -> bool:
+## Fase delle alleanze dello scenario 1813 (Struggle of Nations)
+func _alleanze_1813() -> void:
+	var l: int = s["lato"]
+	var al: Dictionary = scen["alleanze_1813"]
+	var mod_mese: int = int(al["mesi"].get(str(s["mese"]), 0))
+	var diff := clampi(punti(1)["tot"] - punti(0)["tot"], -4, 4)
+	var mod := mod_mese + diff
+	if s["alleanze_fatte"].has("defezione"):
+		return
+	# i Francesi tirano solo se possono ottenere lo 0 (i satelliti neutrali diventano attivi)
+	if l == 0 and (mod >= 0 or s["alleanze_fatte"].has("satelliti")):
+		return
+	var tiro := dado()
+	var t := tiro + mod
+	eventi.append({"k": "dado", "titolo": "Alleanze", "dadi": [tiro]})
+	if t <= 0 and not s["alleanze_fatte"].has("satelliti"):
+		s["alleanze_fatte"].append("satelliti")
+		for code in al["satelliti"]:
+			s["neutrali"].erase(code)
+		_log("[b]Alleanze[/b] (dado %d, modificato %d): Baviera, Napoli, Sassonia e Svizzera combattono con la Francia." % [tiro, t])
+		eventi.append({"k": "annuncio", "t": "I satelliti neutrali si schierano con la Francia"})
+	elif t >= 7 and not s["alleanze_fatte"].has("austria"):
+		s["alleanze_fatte"].append("austria")
+		for code in al["entrano"]:
+			s["neutrali"].erase(code)
+		for h in Mappa.esagoni:
+			if Mappa.ha_citta(h) and Mappa.stato(h) == "AU" and sp_in(h, 0) == 0:
+				s["controllo"][h] = 1
+		_log("[b]Alleanze[/b] (dado %d, modificato %d): l'Austria e la Svezia dichiarano guerra alla Francia!" % [tiro, t])
+		eventi.append({"k": "annuncio", "t": "L'Austria e la Svezia entrano in guerra!"})
+	elif t >= 7:
+		s["alleanze_fatte"].append("defezione")
+		_defezione(al)
+		_log("[b]Alleanze[/b] (dado %d, modificato %d): i satelliti tedeschi abbandonano Napoleone!" % [tiro, t])
+		eventi.append({"k": "annuncio", "t": "I satelliti tedeschi passano alla Coalizione"})
+	else:
+		_log("Alleanze (dado %d, modificato %d): nessun effetto." % [tiro, t])
+
+func _defezione(al: Dictionary) -> void:
+	var cambia: Dictionary = al["defezione"]
+	for id in s["unita"].keys():
+		var u: Dictionary = s["unita"][id]
+		if u["n"] != "FR" or not cambia.has(u["s"]):
+			continue
+		var nuova: String = cambia[u["s"]]
+		var h: String = u["h"]
+		var sp := int(u["sp"])
+		s["unita"].erase(id)
+		if nuova == "":
+			continue
+		var dove := h
+		if sp_in(h, 0) > 0:
+			dove = ""
+			for v in Mappa.vicini(h):
+				if sp_in(v[0], 0) == 0 and sp_in(v[0], 2) == 0:
+					dove = v[0]
+					break
+		if dove != "":
+			_nuova_unita(nuova, "", "L", sp, dove)
 	for id in s["capi"]:
 		var c: Dictionary = s["capi"][id]
-		if c["nome"] == "Napoleon" and c["morto"]:
-			_chiudi(1, "Napoleone è morto: la Coalizione vince.")
-			return true
-	if scen["id"] == "1805":
-		if controllore(Mappa.hex("Vienna")) == 0 and controllore(Mappa.hex("Venice")) == 0 and sp_naz("AU") < 8:
-			_chiudi(0, "Vienna e Venezia sono francesi e l'esercito austriaco è distrutto: pace di Presburgo!")
-			return true
+		if c["n"] == "FR" and cambia.has(c["s"]):
+			c["h"] = ""
+			c["morto"] = true
+
+func _controlla_vittoria_immediata() -> bool:
 	if sp_lato(0) == 0:
 		_chiudi(1, "L'esercito francese è distrutto.")
 		return true
@@ -1688,6 +1865,27 @@ func _controlla_vittoria_immediata() -> bool:
 	return false
 
 func _fine_partita() -> void:
+	if scen.get("vittoria_tipo", "") == "vienna":
+		var hv := Mappa.hex("Vienna")
+		var fr := 0
+		for id in unita_in(hv, 0):
+			if not (s["assedi"].has(hv) and int(s["assedi"][hv]["lato"]) == 1 and s["unita"][id]["in"]):
+				fr += int(s["unita"][id]["sp"])
+		if fr > 0:
+			_chiudi(0, "Napoleone è a Vienna con %d punti forza: pace di Presburgo." % fr)
+		else:
+			_chiudi(1, "Vienna non è in mano francese: la Coalizione resiste.")
+		return
+	if scen.get("vittoria_tipo", "") == "area3":
+		var tenute := []
+		for h in Mappa.esagoni:
+			if Mappa.citta_maggiore(h) and Mappa.area(h) == 3 and controllore(h) == 0 and not s["assedi"].has(h):
+				tenute.append(Mappa.nome_citta(h))
+		if tenute.is_empty():
+			_chiudi(1, "I Francesi non tengono più nessuna città maggiore libera in Germania (area 3).")
+		else:
+			_chiudi(0, "I Francesi tengono ancora: %s." % ", ".join(tenute))
+		return
 	var p0 := punti(0)
 	var p1 := punti(1)
 	var m := int(scen.get("margine", 3))
@@ -1716,6 +1914,11 @@ func importa(st: Dictionary) -> void:
 	carica_catalogo()
 	s = _normalizza(st)
 	scen = Scenari.dati(s["scen"])
+	if not s.has("neutrali"):
+		s["neutrali"] = []
+	if not s.has("alleanze_fatte"):
+		s["alleanze_fatte"] = []
+	Mappa.inverno = inverno()
 
 static func _normalizza(v):
 	if v is Dictionary:

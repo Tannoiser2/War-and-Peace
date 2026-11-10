@@ -1092,11 +1092,11 @@ func _menu_nuova() -> void:
 		b.button_pressed = carattere_ia == o[1]
 		b.pressed.connect(func(): carattere_ia = o[1])
 		r2.add_child(b)
-	_pannello_regole(v)
 	var r3 := HBoxContainer.new()
 	v.add_child(r3)
 	r3.add_child(bottone("Inizia", _avvia_locale, 26, 260))
 	r3.add_child(bottone("Indietro", mostra_menu, 20))
+	_pannello_regole(v)
 
 func _avvia_locale() -> void:
 	online = false
@@ -1730,6 +1730,8 @@ func _riga_unita(id: String, con_spin: bool) -> HBoxContainer:
 	var nome: String = Dati.TIPI[u["t"]]["nome"]
 	var naz: String = Dati.MINORI.get(u["s"], "") if u["s"] != "" else Dati.NAZ[u["n"]]["nome"]
 	var extra := ""
+	if u.get("fisso", false):
+		nome = "guarnigione imperiale"
 	if u["in"]:
 		extra = ", in città"
 	if u["mo"]:

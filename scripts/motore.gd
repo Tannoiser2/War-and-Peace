@@ -100,6 +100,8 @@ func _data_raggiunta(d: String) -> bool:
 func _risolvi_hex(nome: String) -> String:
 	if nome.begins_with("#"):
 		return nome.substr(1)
+	if nome.begins_with("@trasporto:"):
+		return str(s.get("trasporto", {}).get(nome.substr(11), ""))
 	if nome.begins_with("@capo:"):
 		for id in s["capi"]:
 			if s["capi"][id]["nome"] == nome.substr(6) and s["capi"][id]["h"] != "":
@@ -146,17 +148,25 @@ func _schiera(gruppo: Dictionary) -> void:
 		var p: PackedStringArray = str(c).split(":")
 		_nuovo_capo(p[0], p[1], h, p[2] if p.size() > 2 else "")
 	for u in gruppo["unita"]:
-		_nuova_unita(u[0], u[1], u[2], int(u[3]), h)
+		var id := _nuova_unita(u[0], u[1], u[2], int(u[3]), h, gruppo.get("dentro", false))
+		# guarnigioni imperiali: restano sempre in città, non si muovono e non subiscono logoramento
+		if gruppo.get("fisso", false):
+			s["unita"][id]["fisso"] = true
 
 ## nome "@0" o "@1": un capo generico ("Leader") di quel valore; sub: stato minore del capo.
 ## Un capo con nome già in gioco non viene duplicato (se è fuori mappa rientra nel nuovo esagono).
 func _nuovo_capo(naz: String, nome: String, h: String, sub := "") -> String:
+	# "Joubert=Jourdan": la pedina di Joubert per un capo che non ha la sua (sostituti del supplemento)
+	var alias := ""
+	if "=" in nome:
+		alias = nome.split("=")[1]
+		nome = nome.split("=")[0]
 	var generico := nome.begins_with("@")
 	var val := int(nome.substr(1)) if generico else -1
 	if not generico:
 		for id in s["capi"]:
 			var c0: Dictionary = s["capi"][id]
-			if c0["nome"] == nome and c0["n"] == naz:
+			if c0["nome"] == (alias if alias != "" else nome) and c0["n"] == naz:
 				if c0["morto"]:
 					return ""
 				if c0["h"] == "" and h != "" and not c0.has("mare"):
@@ -183,8 +193,8 @@ func _nuovo_capo(naz: String, nome: String, h: String, sub := "") -> String:
 			var sc: String = c["sub"] if c["sub"] != "I?" else ""
 			if sub != "":
 				sc = sub
-			s["capi"][id] = {"nome": c["nome"] if not generico else "Leader", "n": naz, "s": sc,
-				"v": int(c["val"]) if not generico else val,
+			s["capi"][id] = {"nome": alias if alias != "" else (c["nome"] if not generico else "Leader"), "n": naz, "s": sc,
+				"v": int(scen.get("valori_capi", {}).get(alias if alias != "" else c["nome"], int(c["val"]))) if not generico else val,
 				"h": h, "mp": 0, "fuori": 0, "morto": false, "img": c["img"]}
 			return id
 	push_error("capo non trovato %s %s" % [naz, nome])
@@ -276,6 +286,18 @@ func aperto(h: String) -> bool:
 	if scen.has("aree") and not Mappa.area(h) in scen["aree"]:
 		return false
 	var st := Mappa.stato(h)
+	# città di uno stato neutrale che lo scenario apre (Ginevra francese nel 1796-97)
+	if Mappa.ha_citta(h) and Mappa.nome_citta(h) in scen.get("aperti_citta", []):
+		return true
+	# zone aperte attorno a città di stati altrimenti neutrali (la Polonia del 1792)
+	var ar: Dictionary = scen.get("aperti_raggio", {})
+	for nome in ar:
+		if Mappa.distanza(h, Mappa.hex(nome), int(ar[nome])) <= int(ar[nome]):
+			return true
+	# il primo turno dei Polacchi del 1792: niente Russia
+	var t1: Dictionary = scen.get("turno1_vietato", {})
+	if not t1.is_empty() and int(s["turno"]) == 1 and int(s["lato"]) == int(t1["lato"]) and st in t1["stati"]:
+		return false
 	# città vietate finché una nazione non è in guerra (es. Berlino nel 1809)
 	var viet: Dictionary = scen.get("vietate", {})
 	if Mappa.ha_citta(h) and viet.has(Mappa.nome_citta(h)) and s["neutrali"].has(viet[Mappa.nome_citta(h)]):
@@ -303,6 +325,9 @@ func entrabile(h: String, porta: Dictionary = {}) -> bool:
 		if u.is_empty():
 			continue
 		if u["t"] in ["M", "P"] and Mappa.stato(h) != casa_milizia(u):
+			return false
+		# territori vietati a una nazione (gli Austriaci in Prussia nel 1792)
+		if Mappa.stato(h) in scen.get("vietati_naz", {}).get(u["n"], []):
 			return false
 		if u["t"] == "P":
 			partig = true
@@ -495,6 +520,10 @@ func _fonti_naz(naz: String, lato: int) -> Array:
 			var u: Dictionary = s["unita"][id]
 			if u["n"] == naz and u["h"] != "" and Mappa.costiero(u["h"]) and not (u["in"] and s["assedi"].has(u["h"])):
 				out.append(u["h"])
+	if sp.get("trasporto", false):
+		var ht := trasporto(naz, lato)
+		if ht != "":
+			out.append(ht)
 	if sp.get("nord_siria", false):
 		for h in Mappa.esagoni:
 			if Mappa.es(h).get("nord", false) and sp_in(h, 1 - lato) == 0:
@@ -502,6 +531,31 @@ func _fonti_naz(naz: String, lato: int) -> Array:
 	if sp.get("egitto", "") != "":
 		out.append_array(_fonti_egitto(str(sp["egitto"]), lato))
 	return out
+
+## Esagono del trasporto navale della nazione: se il nemico lo raggiunge si sposta presso le sue
+## truppe più vicine; senza truppe a terra sparisce
+func trasporto(naz: String, lato: int) -> String:
+	var t: Dictionary = s.get("trasporto", {})
+	if not t.has(naz):
+		return ""
+	var h: String = t[naz]
+	if sp_in(h, 1 - lato) == 0:
+		return h
+	var best := ""
+	var bd := 999
+	for id in s["unita"]:
+		var u: Dictionary = s["unita"][id]
+		if u["n"] == naz and u["h"] != "" and sp_in(u["h"], 1 - lato) == 0:
+			var dd := Mappa.distanza(h, u["h"], 30)
+			if dd < bd:
+				bd = dd
+				best = u["h"]
+	if best == "":
+		t.erase(naz)
+		_log("Il trasporto navale %s è perduto." % Dati.NAZ.get(naz, {}).get("agg", naz))
+		return ""
+	t[naz] = best
+	return best
 
 ## Unità non assediate della nazione nell'esagono
 func _naz_dentro(h: String, naz: String) -> bool:
@@ -688,6 +742,7 @@ func _inizia_segmento_dopo_logoramento() -> void:
 			_pesca_carta(l)
 	_eventi_scenario()
 	_fase_rinforzi()
+	_mobilitazione()
 	_carte_leve(l)
 	_punti_rimpiazzo()
 	if _controlla_vittoria_immediata():
@@ -737,7 +792,7 @@ func _logora_esagono(h: String, l: int, tiro: int) -> int:
 		var colpibili := []
 		for id in ids:
 			var u: Dictionary = s["unita"][id]
-			if u["t"] == "P":
+			if u["t"] == "P" or u.get("fisso", false):
 				continue
 			colpibili.append(id)
 			pf += int(u["sp"])
@@ -760,7 +815,7 @@ func _logora_esagono(h: String, l: int, tiro: int) -> int:
 			return 0
 		var t := tiro
 		if tutti_fr and not scen.get("francesi_ridotti", false): t -= 1
-		if tutti_casa: t -= 1
+		if tutti_casa and not (tutti_fr and s["flag"].has("levee")): t -= 1
 		if senza: t += 1
 		if inverno(): t += 1
 		if Mappa.area(h) in [1, 4]: t += 1
@@ -781,6 +836,12 @@ func _a_casa(u: Dictionary, h: String) -> bool:
 	return st == u["n"]
 
 func _fase_alleanze() -> void:
+	if scen.has("rivoluzione"):
+		_fase_rivoluzione()
+		return
+	if scen.has("polonia"):
+		_alleanza_polonia()
+		return
 	if scen.has("alleanze_1813"):
 		_alleanze_1813()
 		return
@@ -1126,6 +1187,16 @@ func _lato_gruppo(g: Dictionary) -> int:
 func _arrivo(g: Dictionary, l: int) -> void:
 	if g.has("se") and not _condizione(g["se"]):
 		return
+	# rivolta realista: niente rinforzi né rimpiazzi francesi per due turni
+	if l == 0 and scen.has("rivoluzione") and int(s["turno"]) - int(s["flag"].get("realisti", -9)) <= 1 and not g.has("ritira"):
+		return
+	# leva in massa: rinforzi e rimpiazzi francesi raddoppiati
+	if l == 0 and s["flag"].has("levee") and scen.has("rivoluzione") and not g.get("raddoppiato", false):
+		var g2 := g.duplicate(true)
+		g2["raddoppiato"] = true
+		for u in g2.get("unita", []):
+			u[3] = int(u[3]) * 2
+		g = g2
 	if g.get("una_volta", false):
 		var k := "rf_%s_%d" % [str(g.get("hex", "")), hash(str(g))]
 		if s["fatti"].has(k):
@@ -1184,6 +1255,8 @@ func _arrivo(g: Dictionary, l: int) -> void:
 			break
 	if h == "":
 		var h0 := _risolvi_hex(candidati[0]) if candidati[0] != "" else ""
+		if h0 == "":
+			return
 		match regola:
 			"persi":
 				_log("Rinforzi perduti: %s è in mano nemica." % Mappa.nome(h0))
@@ -1454,6 +1527,18 @@ func raggiungibili(capo: String, porta: Dictionary, fm_max := 3) -> Dictionary:
 	var g := info_gruppo(capo, porta)
 	if not g["ok"]:
 		return {}
+	if int(s["flag"].get("realisti", -9)) == int(s["turno"]) and int(s["lato"]) == 0 and str(g["da"]) == Mappa.hex("Paris"):
+		return {}
+	var naz_gruppo := {}
+	for id in porta:
+		if s["unita"].has(id):
+			if s["unita"][id].get("fisso", false):
+				return {}
+			naz_gruppo[s["unita"][id]["n"]] = true
+			if s["unita"][id]["n"] in scen.get("no_marcia", []):
+				fm_max = 0
+	if capo != "" and s["capi"].has(capo):
+		naz_gruppo[s["capi"][capo]["n"]] = true
 	var l: int = s["lato"]
 	var da: String = g["da"]
 	var limite_truppe: int = g["mp_truppe"] + (fm_max if not porta.is_empty() else 0)
@@ -1516,9 +1601,27 @@ func raggiungibili(capo: String, porta: Dictionary, fm_max := 3) -> Dictionary:
 		var fm := 0
 		if not porta.is_empty() and dist[h] > g["mp_truppe"]:
 			fm = dist[h] - g["mp_truppe"]
-		# non si può terminare in una città dopo averla travolta
+		# alleati che non collaborano (Austriaci e Prussiani nel 1792): mai nello stesso esagono
+		if _alleato_ostile(h, naz_gruppo, int(s["lato"])):
+			continue
 		out[h] = {"mp": dist[h], "fm": fm, "via": via[h]}
 	return out
+
+func _alleato_ostile_naz(n: String, altre: Dictionary) -> bool:
+	for cp in scen.get("non_insieme", []):
+		for k in [0, 1]:
+			if n == cp[k] and altre.has(cp[1 - k]):
+				return true
+	return false
+
+func _alleato_ostile(h: String, naz_gruppo: Dictionary, l: int) -> bool:
+	for cp in scen.get("non_insieme", []):
+		for k in [0, 1]:
+			if naz_gruppo.has(cp[k]):
+				for id in unita_in(h, l):
+					if s["unita"][id]["n"] == cp[1 - k]:
+						return true
+	return false
 
 ## Costo aggiuntivo del travolgimento: 0 con 6:1, 1 con 4:1 (5:1 in montagna o trincea), -1 se impossibile
 func _travolge(h: String, forza: int, cav: int) -> int:
@@ -1602,6 +1705,7 @@ func _muovi(d: Dictionary) -> bool:
 		if senza: t += 1
 		if Mappa.area(da) in [1, 4]: t += 1
 		if inverno(): t += 1
+		if tutti_fr and s["flag"].has("levee"): t += 1
 		var r := Dati.marcia(t, fm)
 		# carta del trasporto su carri: meno uno al dado se migliora il risultato
 		if carte_attive() and "C5" in mano(l):
@@ -1802,8 +1906,14 @@ func _fine_movimento() -> void:
 func attacchi_possibili() -> Array:
 	var l: int = s["lato"]
 	var out := []
+	var t1: Dictionary = scen.get("turno1_vietato", {})
+	if t1.get("no_attacchi", false) and int(s["turno"]) == 1 and l == int(t1["lato"]):
+		return out
 	for h in esagoni_di(l):
 		if sp_in(h, l, true) <= 0:
+			continue
+		# un capo polacco che ha mobilitato non attacca
+		if int(s["flag"].get("mob_" + h, -1)) == int(s["turno"]):
 			continue
 		for v in Mappa.vicini(h):
 			var n: String = v[0]
@@ -2341,6 +2451,8 @@ func _morale_lato(b: Dictionary, lato: int) -> int:
 ## Morale di un'unità con le regole dello scenario (morale ridotto, patriottismo russo, capi che
 ## danno morale ai Francesi come Bonaparte in Italia e in Egitto)
 func morale_unita(u: Dictionary, capi_nomi: Array = []) -> int:
+	if u.get("fisso", false):
+		return 0
 	var m := Dati.morale(u["n"], u["s"], u["t"])
 	var regolare: bool = u["t"] in ["I", "C"] and (u["s"] == "" or u["s"] == "K")
 	for r in scen.get("morale", []):
@@ -2469,6 +2581,11 @@ func _risolvi_round(b: Dictionary) -> void:
 		elif int(mt) != 0:
 			mods.append(["Tattica", int(mt)])
 			mod += int(mt)
+	# la Marsigliese: un punto a favore dei Francesi in tutte le battaglie
+	if s["flag"].has("marsigliese"):
+		var mm := 1 if grande == 0 else -1
+		mods.append(["La Marsigliese", mm])
+		mod += mm
 	# carte evento giocate all'inizio del round
 	var cm: Array = b.get("cm", [0, 0])
 	var cs: Array = b.get("cm_sempre", [0, 0])
@@ -2689,6 +2806,8 @@ func _controlla_capi_soli(b: Dictionary, lato: int) -> void:
 			var c: Dictionary = s["capi"][id]
 			if _ferito(id):
 				continue
+			if _prova_lealta(id):
+				continue
 			if b["tipo"] == "assalto" and h == b["dif"] and lato == int(b["ld"]):
 				c["morto"] = true
 				c["h"] = ""
@@ -2779,6 +2898,12 @@ func _rinforzi_battaglia(b: Dictionary) -> void:
 					continue
 				if s["assedi"].has(h):
 					continue
+				var nb := _naz_battaglia(b, lato)
+				var nh := {}
+				for id in unita_in(h, lato, true):
+					nh[s["unita"][id]["n"]] = true
+				if _alleato_ostile_naz(nb, nh):
+					continue
 				candidati[h] = true
 		for h in candidati:
 			var best := 0
@@ -2835,6 +2960,8 @@ func _ritirata_lato(b: Dictionary, lato: int, volontaria: bool) -> void:
 		var ids := unita_in(h, lato, true)
 		if ids.is_empty():
 			continue
+		for c in capi_in(h, lato):
+			_prova_lealta(c)
 		var cav := 0
 		var tot := 0
 		for id in ids:
@@ -3177,6 +3304,15 @@ func _fine_partita() -> void:
 		if scen.has("punti_egitto"):
 			_fine_egitto()
 			return
+		if scen.has("punti_spagna"):
+			_fine_spagna()
+			return
+		if scen.has("punti_1792"):
+			_fine_1792()
+			return
+		if scen.has("polonia"):
+			_fine_polonia()
+			return
 		var dv := int(scen.get("vince_default", 1))
 		_chiudi(dv, str(scen.get("perche_default", "Nessuna condizione di vittoria raggiunta.")))
 		return
@@ -3235,6 +3371,76 @@ func _fine_egitto() -> void:
 		_chiudi(1, "Vittoria marginale della Coalizione: i Francesi hanno solo %d punti città." % cp)
 	else:
 		_chiudi(1, "Vittoria decisiva della Coalizione: i Francesi hanno solo %d punti città." % cp)
+
+## Scenari brevi della penisola (supplemento): punti delle 15 città maggiori di Spagna e Portogallo
+func _citta_penisola() -> Array:
+	var out := []
+	for h in Mappa.esagoni:
+		if Mappa.citta_maggiore(h) and (Mappa.stato(h) in ["SP", "Pt"] or Mappa.nome_citta(h) == "Gibraltar"):
+			out.append(h)
+	return out
+
+func _inglesi_in(stato: String) -> bool:
+	for h in _citta_penisola():
+		if Mappa.stato(h) != stato or Mappa.nome_citta(h) == "Gibraltar":
+			continue
+		for id in unita_in(h, 1):
+			if s["unita"][id]["n"] == "EN" and s["unita"][id]["s"] == "":
+				return true
+	return false
+
+func punti_spagna() -> Array:
+	var ps: Dictionary = scen["punti_spagna"]
+	var fr := 0
+	var al := 0
+	if ps.get("tipo", "") == "1813":
+		for nome in ["Bayonne", "Toulouse", "Bordeaux"]:
+			var h := Mappa.hex(nome)
+			if controllore(h) == 0:
+				fr += 2
+			elif controllore(h) == 1 and _tiene(h, 1, false, false, true):
+				al += 5
+		var fr_in_spagna := false
+		for h in _citta_penisola():
+			if Mappa.stato(h) == "SP" and Mappa.nome_citta(h) != "Gibraltar":
+				if _tiene(h, 0, false, true, false):
+					fr += 3
+				if sp_in(h, 0) > 0:
+					fr_in_spagna = true
+		if _tiene(Mappa.hex("Madrid"), 0, false, true, true):
+			fr += 5
+		if not fr_in_spagna:
+			al += 5
+		return [fr, al]
+	for h in _citta_penisola():
+		var v := 5 if Mappa.nome_citta(h) in ["Madrid", "Lisbon", "Gibraltar"] else 1
+		if _tiene(h, 0, false, true, true):
+			fr += v
+		elif _tiene(h, 1, false, true, false):
+			al += v
+	if not _inglesi_in("SP"):
+		fr += 5
+	if not _inglesi_in("Pt"):
+		fr += 5
+	return [fr, al]
+
+func _fine_spagna() -> void:
+	var ps: Dictionary = scen["punti_spagna"]
+	var p := punti_spagna()
+	var txt := "Punti: Francia %d, Coalizione %d." % [p[0], p[1]]
+	if ps.get("tipo", "") == "1813":
+		if p[0] > p[1]:
+			_chiudi(0, "I Francesi tengono il loro ridotto nel nord. " + txt)
+		else:
+			_chiudi(1, "Wellington ha cacciato i Francesi. " + txt)
+		return
+	var madrid := Mappa.hex("Madrid")
+	if _tiene(madrid, 0, false, true, true) and p[0] - p[1] >= int(ps["margine"]):
+		_chiudi(0, "Madrid è francese e i Francesi hanno almeno %d punti di vantaggio. %s" % [int(ps["margine"]), txt])
+	elif _tiene(madrid, 1, false, true, false) and _tiene(Mappa.hex("Lisbon"), 1, false, true, false) and p[1] > p[0]:
+		_chiudi(1, "Vittoria maggiore della Coalizione: Madrid e Lisbona libere. " + txt)
+	else:
+		_chiudi(1, "Vittoria tattica della Coalizione: l'ulcera spagnola continua. " + txt)
 
 func _chiudi(vince: int, perche: String) -> void:
 	s["fase"] = "finita"
@@ -3475,6 +3681,12 @@ func _sbarca(rid: String, verso: String) -> bool:
 		s["capi"][id]["mp"] = mp_capo(id)
 	s["riserva"].erase(r)
 	_aggiorna_controllo(verso)
+	# trasporti navali che sbarcano con le truppe e diventano una fonte di rifornimento (Suvarov 1799)
+	for u in r["unita"]:
+		if str(u[0]) in scen.get("trasporti", []):
+			if not s.has("trasporto"):
+				s["trasporto"] = {}
+			s["trasporto"][str(u[0])] = verso
 	_log("Sbarco a %s." % Mappa.nome(verso))
 	eventi.append({"k": "annuncio", "t": "Sbarco a %s" % Mappa.nome(verso)})
 	return true
@@ -4703,3 +4915,304 @@ func _carte_leve(l: int) -> void:
 			_nuova_unita(str(lv["naz"]), "", str(lv["t"]), int(lv["sp"]), h)
 			_log("Nuove leve a %s." % Mappa.nome(h))
 	s["carte"]["leve"] = s["carte"]["leve"].filter(func(lv): return int(lv["turni"]) > 0)
+
+# =============================================================================================
+# Supplemento: guerre della Rivoluzione (La Marseillaise 1792, Sambre et Meuse 1792-95) e
+# Kosciuszko 1792
+
+## Prova di lealtà (1792): un capo francese con nome presente a una ritirata o a una disfatta
+## tira un dado; con 6 è sostituito da un capo generico di un livello più basso
+func _prova_lealta(id: String) -> bool:
+	if not scen.get("lealta", false) or not s["capi"].has(id):
+		return false
+	var c: Dictionary = s["capi"][id]
+	if c["n"] != "FR" or str(c["nome"]) == "Leader" or c["morto"] or c["h"] == "":
+		return false
+	s["flag"]["test_lealta"] = int(s["turno"])
+	var t := dado()
+	if t < 6:
+		return false
+	var h: String = c["h"]
+	var v := maxi(0, int(c["v"]) - 1)
+	c["morto"] = true
+	c["h"] = ""
+	_nuovo_capo("FR", "@%d" % v, h)
+	_log("[b]Prova di lealtà[/b]: %s abbandona la Repubblica (dado 6) ed è sostituito da un capo di valore %d." % [c["nome"], v])
+	eventi.append({"k": "annuncio", "t": "%s abbandona la Repubblica" % c["nome"]})
+	return true
+
+## Città della Francia (entro i confini rossi della mappa) in mano al nemico
+func _citta_francesi_perse(solo_maggiori: bool) -> int:
+	var esclusi: Array = scen["rivoluzione"].get("esclusi", [])
+	var n := 0
+	for h in Mappa.esagoni:
+		if not Mappa.ha_citta(h) or Mappa.stato(h) != "FR" or Mappa.nome_citta(h) in esclusi:
+			continue
+		if solo_maggiori and not Mappa.citta_maggiore(h):
+			continue
+		if controllore(h) == 1:
+			n += 1
+	return n
+
+## Fase rivoluzionaria (al posto delle alleanze, solo nel segmento francese): leva in massa e
+## Marsigliese; dal 1793 nel Sambre et Meuse anche capi nuovi, interventi e insurrezioni
+func _fase_rivoluzione() -> void:
+	if int(s["lato"]) != 0:
+		return
+	var riv: Dictionary = scen["rivoluzione"]
+	var dal_93 := riv.has("interventi") and int(s["turno"]) >= int(riv["interventi"])
+	var mod := _citta_francesi_perse(dal_93)
+	if dal_93:
+		if s["flag"].has("levee"):
+			mod += 1
+	elif int(s["flag"].get("test_lealta", -9)) == int(s["turno"]) - 1:
+		mod += 1
+	var t := dado()
+	var tot := t + mod
+	eventi.append({"k": "dado", "titolo": "Fase rivoluzionaria", "dadi": [t]})
+	if not s["flag"].has("levee"):
+		if tot >= 7:
+			s["flag"]["levee"] = int(s["turno"])
+			_log("[b]La Patrie en danger![/b] (dado %d%+d) Leva in massa: rinforzi e rimpiazzi francesi raddoppiati, ma niente vantaggio in patria nel logoramento e più uno al dado della marcia forzata." % [t, mod])
+			eventi.append({"k": "annuncio", "t": "Leva in massa!"})
+		else:
+			_log("Fase rivoluzionaria (dado %d%+d): nessun effetto." % [t, mod])
+	elif not s["flag"].has("marsigliese") and int(s["turno"]) > int(s["flag"]["levee"]):
+		if tot >= 6:
+			s["flag"]["marsigliese"] = true
+			_log("[b]La Marsigliese[/b] (dado %d%+d): da ora i Francesi hanno un punto in più in tutte le battaglie." % [t, mod])
+			eventi.append({"k": "annuncio", "t": "Allons enfants de la Patrie!"})
+		else:
+			_log("Fase rivoluzionaria (dado %d%+d): il canto non si diffonde ancora." % [t, mod])
+	if dal_93:
+		_pesca_capo()
+		_interventi(t + mod)
+
+## Sambre et Meuse: un capo dal sacchetto
+func _pesca_capo() -> void:
+	var riv: Dictionary = scen["rivoluzione"]
+	if not s["flag"].has("sacchetto"):
+		s["flag"]["sacchetto"] = riv.get("sacchetto", []).duplicate()
+	var sac: Array = s["flag"]["sacchetto"]
+	for agg in riv.get("aggiunte", []):
+		var k := "sacchetto_%s" % agg[1]
+		if int(s["turno"]) >= int(agg[0]) and not s["flag"].has(k):
+			s["flag"][k] = true
+			sac.append(agg[1])
+	if sac.is_empty():
+		return
+	var pescato: String = sac.pop_at(_caso(sac.size()))
+	var p := pescato.split(":")
+	var naz := p[0]
+	match naz:
+		"FR":
+			# sostituisce il capo francese peggiore in gioco
+			var peggiore := ""
+			for id in s["capi"]:
+				var c: Dictionary = s["capi"][id]
+				if c["n"] == "FR" and not c["morto"] and c["h"] != "" and (peggiore == "" or int(c["v"]) < int(s["capi"][peggiore]["v"])):
+					peggiore = id
+			var h: String = s["capi"][peggiore]["h"] if peggiore != "" else Mappa.hex("Paris")
+			if peggiore != "":
+				s["capi"][peggiore]["h"] = ""
+				if str(s["capi"][peggiore]["nome"]) != "Leader":
+					s["capi"][peggiore]["morto"] = true
+			_nuovo_capo("FR", p[1], h)
+			_log("Il governo rivoluzionario affida un comando a %s, a %s." % [p[1].split("=")[-1], Mappa.nome(h)])
+		"AU":
+			_nuovo_capo("AU", p[1], Mappa.hex("Vienna"))
+			_log("%s arriva a Vienna." % p[1].split("=")[-1])
+		"EN":
+			for nome in ["Antwerp", "Amsterdam", "Hanover"]:
+				var h := Mappa.hex(nome)
+				if sp_in(h, 0) == 0:
+					_nuovo_capo("EN", p[1], h)
+					_nuova_unita("EN", "", "I", 1, h)
+					_log("%s sbarca a %s con un reggimento inglese." % [p[1].split("=")[-1], nome])
+					break
+
+## Sambre et Meuse: intervento inglese e spagnolo, Vandea, emigrati e rivolta realista
+func _interventi(tot: int) -> void:
+	var riv: Dictionary = scen["rivoluzione"]
+	if tot >= 6 and not s["flag"].has("intervento"):
+		s["flag"]["intervento"] = int(s["turno"])
+		for code in ["EN", "SP"]:
+			s["neutrali"].erase(code)
+		for st in riv.get("stati_intervento", []):
+			if not st in s["in_guerra"]:
+				s["in_guerra"].append(st)
+		_aggiorna_aperti()
+		for g in riv.get("schieramento_intervento", []):
+			var hg := _risolvi_hex(str(g["hex"]))
+			if hg != "" and sp_in(hg, 0) == 0:
+				_schiera(g)
+				s["controllo"][hg] = 1
+		for g in riv.get("mare_intervento", []):
+			_in_riserva(g)
+		var nantes := Mappa.hex("Nantes")
+		for id in unita_in(nantes, 0):
+			s["unita"].erase(id)
+		_nuova_unita("EN", "", "M", 2, nantes)
+		s["controllo"][nantes] = 1
+		_nuovi_partigiani_vicino("EN", nantes, 3, 1)
+		_log("[b]La Gran Bretagna e la Spagna entrano in guerra[/b]; la Vandea insorge.")
+		eventi.append({"k": "annuncio", "t": "Inglesi e Spagnoli entrano in guerra, la Vandea insorge"})
+	if tot >= 7:
+		var n := int(s["flag"].get("sette", 0)) + 1
+		s["flag"]["sette"] = n
+		# emigrati: un punto forza austriaco con un capo austriaco
+		for id in s["capi"]:
+			var c: Dictionary = s["capi"][id]
+			if c["n"] == "AU" and c["h"] != "" and not c["morto"]:
+				_nuova_unita("AU", "", "I", 1, c["h"])
+				_log("Emigrati e fuoriusciti si uniscono agli Austriaci a %s." % Mappa.nome(c["h"]))
+				break
+		if n == 2:
+			s["flag"]["realisti"] = int(s["turno"])
+			_log("[b]Rivolta realista[/b]: niente rinforzi né rimpiazzi francesi per due turni e le truppe di Parigi non lasciano la città.")
+			eventi.append({"k": "annuncio", "t": "Rivolta realista a Parigi"})
+
+func _nuovi_partigiani_vicino(naz: String, h0: String, raggio: int, n: int) -> void:
+	var l := lato_di(naz)
+	var fatti := 0
+	for h in Mappa.esagoni:
+		if fatti >= n:
+			return
+		if Mappa.distanza(h, h0, raggio) <= raggio and h != h0 and unita_in(h).is_empty() and aperto(h):
+			_nuova_unita(naz, "", "P", 1, h)
+			_log("Insorti a %s." % Mappa.nome(h))
+			fatti += 1
+
+## Punti a fine partita del 1792: una per città contesa, meno le città francesi perse
+func _fine_1792() -> void:
+	var p: Dictionary = scen["punti_1792"]
+	var fr := 0
+	var al := 0
+	for nome in p["citta"]:
+		var h := Mappa.hex(nome)
+		if controllore(h) == 0:
+			fr += 1
+		elif controllore(h) == 1:
+			al += 1
+	var perse := 0
+	for h in Mappa.esagoni:
+		if Mappa.citta_maggiore(h) and Mappa.stato(h) == "FR" and not Mappa.nome_citta(h) in p["citta"] and controllore(h) == 1:
+			perse += 1
+	fr -= perse
+	var txt := "Punti: Francia %d (meno %d per le città francesi perse), Coalizione %d." % [fr, perse, al]
+	if fr >= al:
+		_chiudi(0, "La Repubblica regge. " + txt)
+	else:
+		_chiudi(1, "La Coalizione ha la meglio. " + txt)
+
+# ---------- Kosciuszko 1792
+
+func punti_polonia() -> Array:
+	var pl := int(s["flag"].get("pt_pl", 0))
+	var ru := int(s["flag"].get("pt_ru", 0))
+	for nome in ["Riga", "Smolensk", "Kiev"]:
+		var h := Mappa.hex(nome)
+		if controllore(h) == 0 and not s["assedi"].has(h):
+			pl += 1
+	for nome in ["Posen", "Cracow", "Grodno", "Brest-Litovsk", "Minsk"]:
+		var h := Mappa.hex(nome)
+		if controllore(h) == 1 and not s["assedi"].has(h):
+			ru += 1
+	var w := Mappa.hex("Warsaw")
+	if not s["assedi"].has(w):
+		if controllore(w) == 0:
+			pl += 2
+		elif controllore(w) == 1:
+			ru += 2
+	elif sp_in(w, 0) > 0:
+		pl += 1
+	pl += int(s["pv"][0])
+	ru += int(s["pv"][1])
+	return [pl, ru]
+
+func _alleanza_polonia() -> void:
+	if int(s["lato"]) != 0 or int(s["turno"]) <= 2:
+		return
+	var p := punti_polonia()
+	var t := dado()
+	var mod := clampi(p[1] - p[0], -4, 4)
+	var tot := clampi(t + mod, 0, 7)
+	eventi.append({"k": "dado", "titolo": "Alleanze", "dadi": [t]})
+	if tot >= 7:
+		var n := int(s["flag"].get("sette", 0)) + 1
+		s["flag"]["sette"] = n
+		if n == 1:
+			s["flag"]["pt_ru"] = int(s["flag"].get("pt_ru", 0)) + 1
+			_log("[b]Alleanze[/b] (dado %d%+d = 7): il re vacilla, la Russia guadagna un punto permanente." % [t, mod])
+		else:
+			_chiudi(1, "Il re Poniatowski capitola e si unisce alla confederazione di Targowica.")
+	elif tot <= 0:
+		s["flag"]["pt_pl"] = int(s["flag"].get("pt_pl", 0)) + 1
+		_log("[b]Alleanze[/b] (dado %d%+d = 0): i Polacchi resistono e guadagnano un punto permanente." % [t, mod])
+	else:
+		_log("Alleanze (dado %d%+d): nessun effetto (punti Polonia %d, Russia %d)." % [t, mod, p[0], p[1]])
+
+## Mobilitazione polacca: un capo in una città polacca libera, lontano dal nemico, tira un dado
+## più il suo valore: con 4 o più aggiunge un punto forza di fanteria, ma non si muove e non attacca
+func _mobilitazione() -> void:
+	if not scen.has("polonia") or int(s["lato"]) != 0:
+		return
+	var citta: Array = scen["polonia"]["citta"]
+	# i reggimenti polacchi della scatola non sono infiniti
+	var po := 0
+	for u in s["unita"].values():
+		if u["s"] == "Po" and u["t"] == "I":
+			po += int(u["sp"])
+	for id in s["capi"].keys():
+		if po >= int(scen["polonia"].get("max_fanteria", 20)):
+			return
+		var c: Dictionary = s["capi"][id]
+		var h: String = c["h"]
+		if c["n"] != "FR" or c["morto"] or h == "" or not Mappa.ha_citta(h) or not Mappa.nome_citta(h) in citta:
+			continue
+		if controllore(h) != 0 or s["assedi"].has(h) or s["flag"].has("mob_" + h + "_" + str(s["turno"])):
+			continue
+		var vicino := false
+		for v in Mappa.vicini(h):
+			if sp_in(v[0], 1) > 0:
+				vicino = true
+		if vicino:
+			continue
+		s["flag"]["mob_" + h + "_" + str(s["turno"])] = true
+		var t := dado()
+		if t + int(c["v"]) >= 4:
+			po += 1
+			_nuova_unita("FR", "Po", "I", 1, h)
+			s["flag"]["mob_" + h] = int(s["turno"])
+			for u in unita_in(h, 0):
+				s["unita"][u]["mo"] = true
+			for c2 in capi_in(h, 0):
+				s["capi"][c2]["mp"] = 99
+			_log("Mobilitazione a %s (dado %d + %d): un nuovo reggimento polacco; le truppe restano in città." % [Mappa.nome(h), t, int(c["v"])])
+
+func _fine_polonia() -> void:
+	var p := punti_polonia()
+	var pl := 0
+	var ru := 0
+	var w := Mappa.hex("Warsaw")
+	if not s["assedi"].has(w):
+		if controllore(w) == 0: pl += 2
+		elif controllore(w) == 1: ru += 2
+	elif sp_in(w, 0) > 0:
+		pl += 1
+	for nome in ["Posen", "Cracow", "Grodno", "Brest-Litovsk", "Minsk"]:
+		var h := Mappa.hex(nome)
+		if not s["assedi"].has(h):
+			if controllore(h) == 0: pl += 1
+			elif controllore(h) == 1: ru += 1
+	for nome in ["Riga", "Smolensk", "Kiev"]:
+		var h := Mappa.hex(nome)
+		if controllore(h) == 0 and not s["assedi"].has(h):
+			pl += 1
+	if p[0] > p[1]: pl += 2
+	elif p[1] > p[0]: ru += 2
+	var txt := "Punti: Polonia %d, Russia %d." % [pl, ru]
+	if pl >= ru:
+		_chiudi(0, "La Polonia resiste fino all'inverno. " + txt)
+	else:
+		_chiudi(1, "La Russia prevale. " + txt)

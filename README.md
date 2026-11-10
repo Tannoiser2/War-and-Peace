@@ -38,6 +38,17 @@ Si gioca qui: https://tannoiser2.github.io/War-and-Peace/ (e nella ludoteca: htt
   è un dizionario: schieramento in forma breve (`G("Ulm", ["FR:Ney"], "FR 4I; FR:B 1I")`), rinforzi per data,
   alleanze ed eventi con condizioni ed effetti, fonti di rifornimento, condizioni di vittoria, "fasi" per gli
   scenari collegati. Gli esagoni ufficiali (es. P23) si scrivono `#riga,colonna` (riga = 56 - lettere, colonna + 5).
+- Scenari del supplemento "A Soul for War and Peace" (Avalon Digital 2025): I Kosciuszko 1792 (`1792k`: alleanze a
+  punti, mobilitazione polacca, Polonia aperta attorno alle sue città), II La Marseillaise 1792 (`1792`: guarnigioni
+  imperiali fisse, Austriaci e Prussiani che non collaborano, morale francese 1, prove di lealtà, fase rivoluzionaria
+  con leva in massa e Marsigliese, punti delle dieci città), III Sambre et Meuse 1792-95 (`1792s`: in più dal 1793
+  sacchetto dei capi, intervento inglese e spagnolo, Vandea, emigrati, rivolta realista), IV Italia e Germania
+  1796-97 (`1796g`), V Suvarov 1799 (`1799`: trasporti navali come fonti di rifornimento), VI-XI scenari brevi
+  della penisola (`1808c`, `1809t`, `1810t`, `1811f`, `1812b`, `1813v`: regole della guerra di Spagna con i punti
+  delle 15 città maggiori). I capi senza pedina usano un sostituto con il loro nome (`"FR:Joubert=Jourdan"`).
+  Semplificazioni: niente sezioni 9-10 di Sambre et Meuse (mancano nel testo), niente riduzione dei rimpiazzi per la
+  Vandea, il Piemonte usa i rifornimenti austriaci, la regola "mai fuori rifornimento volontariamente" (Russi,
+  Prussiani, Piemontesi) è lasciata al giocatore, la mobilitazione polacca è automatica per i capi lontani dal nemico.
 - Regole navali del Grand Campaign Game (sezione F): squadre e trasporti, 4 PM, zone di mare (Atlantico, Mare
   del Nord, Baltico, Mediterraneo occidentale e orientale), intercettazione, combattimento con la Naval Results
   Table e la Naval Damage Table, inseguimento, blocco, trasporti senza scorta, burrasche, Nelson.

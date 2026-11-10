@@ -7,7 +7,8 @@ class_name Scenari
 extends RefCounted
 
 ## In ordine cronologico, come nel libretto ufficiale (I-XIII); "1798n" è l'Egitto con le flotte
-const ELENCO := ["1796a", "1796", "1798", "1798n", "1800", "1805", "1806", "1809", "1812", "1813", "1814", "1815", "1808", "1811", "1812g"]
+const ELENCO := ["1796a", "1796", "1798", "1798n", "1800", "1805", "1806", "1809", "1812", "1813", "1814", "1815", "1808", "1811", "1812g",
+	"1792k", "1792", "1792s", "1796g", "1799", "1808c", "1809t", "1810t", "1811f", "1812b", "1813v"]
 
 static var _cache := {}
 
@@ -30,6 +31,12 @@ static func dati(id: String) -> Dictionary:
 			"1808": d = _penisola(false)
 			"1811": d = _penisola(true)
 			"1812g": d = _russia(true)
+			"1808c", "1809t", "1810t", "1811f", "1812b", "1813v": d = _spagna_breve(id)
+			"1796g": d = _italia_germania()
+			"1792": d = _marsigliese(false)
+			"1792s": d = _marsigliese(true)
+			"1792k": d = _kosciuszko()
+			"1799": d = _suvarov()
 		if d.is_empty():
 			return {}
 		_converti_date(d)
@@ -1110,3 +1117,423 @@ static func _penisola(dal_1811: bool) -> Dictionary:
 			rd[k] = []
 		rd[k].append_array(agg[k])
 	return d
+
+# =============================================================================================
+# Supplemento "A Soul for War and Peace" (Avalon Digital 2025), scenari brevi della penisola VI-XI:
+# usano le regole della guerra di Spagna (XI) o di Spagna 1811-14 (XII), con schieramenti propri
+# e i punti delle 15 città maggiori di Spagna e Portogallo.
+
+const SPAGNA_BREVI := {
+	"1808c": {"base": false, "titolo": "Spagna 1808: Dos de Mayo", "sottotitolo": "Spain 1808: Dos de Mayo to Corunna",
+		"descrizione": "Maggio 1808: Madrid insorge contro i Francesi e la Spagna intera la segue. Arriveranno Napoleone con la Guardia e Moore con gli Inglesi, fino all'imbarco a La Coruña.",
+		"mese": 4, "anno": 1808, "turni": 9, "margine": 10},
+	"1809t": {"base": false, "titolo": "Spagna 1809: Talavera", "sottotitolo": "Spain 1809: The Talavera Campaign",
+		"descrizione": "Aprile 1809: Napoleone è tornato in Germania. Wellesley sbarca a Lisbona, ricaccia Soult da Oporto sul Douro e marcia con Cuesta verso Talavera.",
+		"mese": 3, "anno": 1809, "turni": 9, "margine": 5},
+	"1810t": {"base": false, "titolo": "Spagna 1810: Torres Vedras", "sottotitolo": "Spain 1810: The Lines of Torres Vedras",
+		"descrizione": "Aprile 1810: la Francia è all'apice in Spagna. Massena marcia sul Portogallo, ma Wellington lo aspetta dietro le linee fortificate di Torres Vedras, davanti a Lisbona.",
+		"mese": 3, "anno": 1810, "turni": 9, "margine": 10},
+	"1811f": {"base": true, "titolo": "Spagna 1811: Fuentes de Oñoro", "sottotitolo": "Spain 1811: Fuentes de Onoro and Albuera",
+		"descrizione": "Aprile 1811: Massena, affamato davanti a Torres Vedras, ripiega dal Portogallo. Wellington lo insegue a Fuentes de Oñoro, Beresford ferma Soult ad Albuera.",
+		"mese": 3, "anno": 1811, "turni": 9, "margine": 10},
+	"1812b": {"base": true, "titolo": "Spagna 1812: la breccia", "sottotitolo": "Spain 1812: Into the Breach Once More",
+		"descrizione": "Gennaio 1812: Wellington attacca d'inverno, mentre i Francesi sono sparsi nei quartieri. Le brecce di Ciudad Rodrigo e Badajoz, Salamanca, Madrid riconquistata e lo scacco di Burgos.",
+		"mese": 0, "anno": 1812, "turni": 12, "margine": 5},
+	"1813v": {"base": true, "titolo": "Spagna 1813: Vitoria", "sottotitolo": "Spain 1813: Wellington's Victory",
+		"descrizione": "Gennaio 1813: dopo la Russia la Spagna non si può più sottomettere. Ai Francesi resta da tenere un ridotto al nord, a difesa della Francia meridionale.",
+		"mese": 0, "anno": 1813, "turni": 12, "tipo": "1813"},
+}
+
+static func _spagna_breve(id: String) -> Dictionary:
+	var sb: Dictionary = SPAGNA_BREVI[id]
+	var d := _penisola(sb["base"])
+	d["id"] = id
+	d["titolo"] = sb["titolo"]
+	d["sottotitolo"] = sb["sottotitolo"]
+	d["descrizione"] = sb["descrizione"]
+	d["mese"] = sb["mese"]
+	d["anno"] = sb["anno"]
+	d["turni"] = sb["turni"]
+	var mesi := ["gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno", "luglio", "agosto", "settembre", "ottobre", "novembre", "dicembre"]
+	var fine_m := (int(sb["mese"]) + int(sb["turni"]) - 1) % 12
+	var fine_a := int(sb["anno"]) + (int(sb["mese"]) + int(sb["turni"]) - 1) / 12
+	d["durata"] = "%d turni mensili, da %s %d a %s %d (supplemento, regole di %s)." % [int(sb["turni"]), mesi[int(sb["mese"])], int(sb["anno"]), mesi[fine_m], fine_a, "Spagna 1811-14" if sb["base"] else "Guerra di Spagna 1808-14"]
+	# restano le due vittorie immediate; a fine partita si contano i punti
+	d["vittoria_cond"] = d["vittoria_cond"].slice(0, 2)
+	d["punti_spagna"] = {"margine": int(sb.get("margine", 0)), "tipo": str(sb.get("tipo", ""))}
+	if sb.get("tipo", "") == "1813":
+		d["vittoria"] = "Vittorie immediate come nella guerra di Spagna. A fine dicembre 1813 il Francese ha 2 punti per Bayonne, Tolosa e Bordeaux sue, 3 per ogni città maggiore di Spagna sua e non assediata, 5 se tiene Madrid rifornita e libera; la Coalizione ha 5 punti se nessuna città maggiore di Spagna ha Francesi e 5 per Bayonne, Tolosa e Bordeaux sue e rifornite. Vince chi ha più punti (la Coalizione a pari punti)."
+	else:
+		d["vittoria"] = "Vittorie immediate come nella guerra di Spagna. A fine partita le 15 città maggiori di Spagna e Portogallo (Gibilterra compresa) valgono 5 punti (Madrid, Lisbona, Gibilterra) o 1: al Francese se sue, libere e rifornite, alla Coalizione se sue e libere; il Francese ha 5 punti in più senza Inglesi nelle città di Spagna e altri 5 senza Inglesi in quelle del Portogallo. Il Francese vince con Madrid rifornita e libera e almeno %d punti di vantaggio; la Coalizione ha una vittoria maggiore con Madrid e Lisbona e più punti, altrimenti una vittoria tattica." % int(sb["margine"])
+	# rinforzi del calendario solo dopo il primo turno
+	var inizio := "%d-%02d" % [int(sb["anno"]), int(sb["mese"]) + 1]
+	var rd := {}
+	for k in d["rinforzi_data"]:
+		if k > inizio:
+			rd[k] = d["rinforzi_data"][k]
+	d["rinforzi_data"] = rd
+	var ogni := func(lista: Array, unita: String) -> Array:
+		var out := []
+		for h in lista:
+			out.append(G(h, [], unita))
+		return out
+	match id:
+		"1809t":
+			d["schieramento"] = [
+				G("Madrid", ["FR:Joseph", "FR:Joubert=Jourdan"], "FR 3I 1C; FR:Sp 1I"), G("Oporto", ["FR:Soult", "FR:Victor"], "FR 5I 1C; FR:Sz 1I"),
+				G("Barcelona", ["FR:@0"], "FR 1I; FR:I 1I"), G("Bayonne", ["FR:@0"], "FR 2I"),
+				G("Valencia", ["SP:Blake"], "SP 3I 2M 1C"), G("Seville", ["SP:Castanos"], "SP 3M"), G("Granada", ["SP:Cuesta"], "SP 3M"),
+				G("Badajoz", ["SP:Pallafox"], "SP 4I 1C"),
+				G("Lisbon", ["EN:Wellington", "EN:Beresford", "EN:Uxbridge", "EN:@0"], "EN 5I 1M; EN:K 1I; EN:Pt 1I"), G("Gibraltar", [], "EN 1I"), G("Vimeiro", [], "EN 1M"),
+			] + ogni.call(["#45,13", "#45,14", "#45,15", "#44,9", "Toulouse", "Bordeaux", "Corunna", "Burgos", "San Sebastian", "Ciudad Rodrigo", "Toledo", "Talavera", "Saragossa", "Pamplona"], "FR 1I")
+			d["pool"] = {"FR||I": 3, "SP||I": 10, "SP||C": 1, "SP||M": 2, "SP||P": 3, "EN|Pt|I": 7, "EN|Pt|C": 1, "EN||M": 5, "EN||P": 2}
+			d["eventi"] = [{"id": "guerriglia", "effetti": [{"e": "partigiani", "naz": "SP", "stato": "SP", "n": 3}, {"e": "partigiani", "naz": "EN", "stato": "Pt", "n": 1}]}]
+		"1810t":
+			d["schieramento"] = [
+				G("Madrid", ["FR:Joseph", "FR:Bessieres"], "FR 3I; FR:Sp 1I"), G("Ciudad Rodrigo", ["FR:Marmont"], "FR 4I 1C"),
+				G("Oporto", ["FR:Massena", "FR:Victor"], "FR 8I 1C; FR:Sz 1I"), G("Barcelona", ["FR:@0"], "FR 1I; FR:I 1I"), G("Bayonne", ["FR:@0"], "FR 5I"),
+				G("Valencia", ["SP:Blake"], "SP 3I 2M 1C"), G("Cadiz", ["SP:Castanos"], "SP 3M"), G("Granada", ["SP:Cuesta"], "SP 3M"),
+				G("Seville", ["SP:Pallafox"], "SP 2I 1C"), G("Cordoba", [], "SP 2M"),
+				G("#49,7", ["EN:Wellington", "EN:Uxbridge"], "EN 5I 2M; EN:K 1I; EN:Pt 2I"), G("Lisbon", ["EN:Beresford", "EN:@0"], "EN 2M; EN:Pt 1I"),
+				G("Gibraltar", [], "EN 1I"), G("Vimeiro", [], "EN 2M"),
+			] + ogni.call(["#45,13", "#45,14", "#45,15", "#44,9", "Toulouse", "Bordeaux", "Corunna", "Burgos", "San Sebastian", "Toledo", "Talavera", "Saragossa", "Badajoz", "Pamplona"], "FR 1I")
+			d["trincee"] = [["#49,7", 1]]
+			d["pool"] = {"FR||I": 5, "SP||I": 14, "SP||C": 1, "SP||P": 3, "EN|Pt|I": 4, "EN|Pt|C": 1, "EN||P": 2}
+			d["eventi"] = [{"id": "guerriglia", "effetti": [{"e": "partigiani", "naz": "SP", "stato": "SP", "n": 3}, {"e": "partigiani", "naz": "EN", "stato": "Pt", "n": 1}]}]
+		"1811f":
+			var sch := []
+			for g in d["schieramento"]:
+				var capi: Array = g["capi"]
+				var en: bool = capi.any(func(c): return str(c).begins_with("EN")) or g["unita"].any(func(u): return u[0] == "EN")
+				if not en:
+					sch.append(g)
+				else:
+					# solo la parte spagnola dei gruppi misti
+					var c2 := capi.filter(func(c): return not str(c).begins_with("EN"))
+					var u2: Array = g["unita"].filter(func(u): return u[0] != "EN")
+					if not c2.is_empty() or not u2.is_empty():
+						var g2: Dictionary = g.duplicate()
+						g2["capi"] = c2
+						g2["unita"] = u2
+						sch.append(g2)
+			sch.append_array([
+				G("Vimeiro", ["FR:Massena"], "FR 5I 1C"), G("Oporto", [], "FR 1I"),
+				G("#49,7", ["EN:Wellington"], "EN 4I; EN:K 1I; EN:Pt 2I"),
+				G("Lisbon", ["EN:Beresford", "EN:Hill"], "EN 1I 2M; EN:Pt 4I 2C"), G("Gibraltar", ["EN:@0"], "EN 1I"),
+			])
+			d["schieramento"] = sch
+			d["trincee"] = [["#49,7", 1]]
+			d["pool"].erase("EN||I")
+			d["pool"]["EN|Pt|I"] = 4
+			d["pool"]["EN||M"] = 4
+		"1812b":
+			d["schieramento"] = [
+				G("Pamplona", [], "FR 1I; FR:N 1I"), G("Seville", ["FR:Soult"], "FR 2I 1C; FR:Po 1I"), G("Madrid", ["FR:Joseph"], "FR:Sp 1I"),
+				G("#45,13", ["FR:Marmont"], "FR 2I 1C"), G("#45,14", ["FR:@0"], "FR 2I"), G("#44,11", ["FR:@0"], "FR 2I"), G("#42,12", ["FR:@0"], "FR 2I"),
+				G("#47,19", ["FR:@1"], "FR 3I; FR:I 1I 1C"), G("#48,10", ["FR:@1"], "FR 2I"),
+				G("Barcelona", [], "FR:I 1I"), G("Saragossa", [], "FR:I 1I"), G("Granada", [], "FR:R 1I"), G("Talavera", [], "FR:R 1I"),
+				G("#44,10", ["SP:La Romana"], "SP 2I"), G("Valencia", ["SP:Blake"], "SP 2I 1C 1M"), G("Cadiz", ["SP:Castanos"], "SP 2I 4M"),
+				G("Cartagena", ["SP:Cuesta"], "SP 2I 4M"), G("Baylen", ["SP:Pallafox"], "SP 2I 1M"),
+				G("#44,9", ["EN:Wellington", "EN:Uxbridge"], "EN 5I 1C; EN:K 1I; EN:Pt 2I"), G("Lisbon", ["EN:Beresford"], "EN 3M; EN:Pt 2I"),
+				G("#49,8", ["EN:Hill"], "EN 2I; EN:Pt 1I"), G("Gibraltar", ["EN:@0"], "EN 2I"),
+				G("Oporto", [], "EN 1M"), G("Vimeiro", [], "EN 1M"), G("Lagos", [], "EN 1M"),
+			] + ogni.call(["#50,12", "#45,21", "#45,15", "#41,21", "Toulouse", "Bordeaux", "Bayonne", "San Sebastian", "Burgos", "Toledo", "Cordoba", "Badajoz", "Ciudad Rodrigo"], "FR 1I")
+			d["pool"] = {"FR||I": 5, "FR||C": 2, "FR|Sz|I": 1, "FR|I|I": 1, "FR|I|C": 1, "SP||I": 4, "SP||C": 2, "EN||I": 1, "EN|Pt|I": 4, "EN|Pt|C": 1}
+		"1813v":
+			d["schieramento"] = [
+				G("Madrid", ["FR:Joseph"], "FR 1I; FR:Sp 1I"), G("Toledo", ["FR:Soult"], "FR 2I 1C; FR:R 1I"), G("#44,12", ["FR:Marmont"], "FR 2I 1C"),
+				G("Valencia", ["FR:@1"], "FR 2I; FR:I 1I 1C"), G("Burgos", ["FR:@0"], "FR 2I"), G("Bayonne", ["FR:@0"], "FR 2I"),
+				G("Barcelona", [], "FR:I 1I"), G("Saragossa", [], "FR:I 1I"), G("Pamplona", [], "FR:N 1I"), G("Talavera", [], "FR:R 1I"),
+				G("#45,21", [], "FR:I 1I"), G("#47,19", [], "FR:I 1I"),
+				G("#41,12", ["SP:Castanos"], "SP 2I 1M"), G("Ciudad Rodrigo", ["SP:La Romana"], "SP 2I 1C"), G("Cartagena", ["SP:Blake", "EN:@0"], "SP 2I 1M; EN 2I"),
+				G("Cadiz", ["SP:Cuesta"], "SP 2I 4M"), G("Seville", ["SP:Pallafox"], "SP 2I 4M"),
+				G("#44,9", ["EN:Wellington", "EN:Uxbridge"], "EN 5I 1C; EN:K 1I; EN:Pt 2I"), G("Lisbon", ["EN:Beresford"], "EN 3M; EN:Pt 2I"),
+				G("#47,10", ["EN:Hill"], "EN 2I; EN:Pt 1I"), G("Gibraltar", [], "EN 1I"),
+				G("Oporto", [], "EN 1M"), G("Vimeiro", [], "EN 1M"), G("Lagos", [], "EN 1M"),
+			] + ogni.call(["#45,14", "#45,15", "#41,21", "Toulouse", "Bordeaux", "San Sebastian"], "FR 1I")
+			d["pool"] = {"FR||I": 5, "FR||C": 2, "FR|Sz|I": 1, "FR|I|I": 1, "FR|I|C": 1, "SP||I": 4, "SP||C": 2, "EN||I": 1, "EN|Pt|I": 4, "EN|Pt|C": 1}
+	return d
+
+# =============================================================================================
+# Supplemento, IV. Taking the War into Italy and Germany 1796-97
+
+static func _italia_germania() -> Dictionary:
+	var nove := ["Genoa", "Milan", "Turin", "Mantua", "Venice", "Ulm", "Innsbruck", "Munich", "Prague"]
+	var r := []
+	for c in ["Lyon", "Rheims", "Brussels", "Paris"]:
+		r.append(G(c, [], "FR 1I", {"da": "1796-07"}))
+		r.append(G(c, [], "FR 1I", {"da": "1796-07", "rimpiazzo": true}))
+	for c in ["Prague", "Vienna", "Munich"]:
+		r.append(G(c, [], "AU 1I", {"da": "1796-09"}))
+		r.append(G(c, [], "AU 1I", {"da": "1796-08", "rimpiazzo": true}))
+	var cav_fr := func() -> Dictionary:
+		return G("Lyon", [], "FR 1C", {"rimpiazzo": true, "alt": ["Rheims", "Brussels", "Paris"]})
+	return {
+		"id": "1796g",
+		"titolo": "Italia e Germania 1796-97",
+		"sottotitolo": "Taking the War into Italy and Germany",
+		"descrizione": "Primavera 1796: il Direttorio passa all'offensiva. Bonaparte scende in Italia contro Beaulieu e i Piemontesi, Moreau e Jourdan varcano il Reno contro l'arciduca Carlo. La guerra finirà, forse, con la pace di Campoformio.",
+		"durata": "Diciotto turni mensili, da maggio 1796 a ottobre 1797 (supplemento).",
+		"mese": 4, "anno": 1796, "turni": 18,
+		"aree": [2, 3],
+		"lati": {"FR": 0, "H": 0, "AU": 1, "R": 1, "B": 1, "I": 1, "Da": 1, "Wu": 1, "Ba": 1, "Pm": 1},
+		"in_guerra": ["FR", "H", "AU", "R", "B", "I", "Da", "Wu", "Ba"],
+		"aperti_citta": ["Geneva"],
+		"controllo": {"Turin": 1, "Geneva": 0},
+		"fonti": {"0": {"stati": ["FR", "H"]}, "1": {"stati": ["AU", "B", "I"]}},
+		"rinforzi_regola": "persi",
+		"schieramento": [
+			G("#40,28", ["FR:Bonaparte", "FR:Massena", "FR:Augereau", "FR:@0"], "FR 11I 1C"), G("#40,27", ["FR:@0"], "FR 2I 1C"),
+			G("#37,26", [], "FR 1I"), G("Lyon", ["FR:Kellermann"], "FR 1I"), G("Geneva", [], "FR 1I"), G("Grenoble", [], "FR 1I"),
+			G("Verdun", ["FR:Moreau"], "FR 5I 1C"), G("Metz", ["FR:@0"], "FR 5I"), G("Liege", ["FR:Joubert=Jourdan"], "FR 5I 2C"),
+			G("Coblenz", ["FR:@1"], "FR 3I"), G("Mainz", ["FR:@1"], "FR 3I"), G("Cologne", [], "FR 2I"), G("Paris", [], "FR 5I"),
+			G("Toulon", [], "FR 1I"), G("Brussels", [], "FR 1I"), G("Namur", [], "FR 1I"), G("Rheims", [], "FR 1I"), G("Antwerp", [], "FR 1I"),
+			G("#39,29", ["AU:Beaulieu"], "AU 5I 1C"), G("Turin", ["AU:@0", "AU:Colli:Pm"], "AU 1I 1C; AU:Pm 5I"),
+			G("#40,30", ["AU:@0"], "AU 1I 1C"), G("Milan", ["AU:@0"], "AU 1I 1C"), G("#36,29", ["AU:@0"], "AU 1I 1C"), G("#40,32", [], "AU 1C"),
+			G("Frankfurt", ["AU:Charles"], "AU 5I 2C"), G("#26,28", ["AU:@0"], "AU 5I 1C"), G("#27,29", ["AU:@0"], "AU 5I 1C"),
+			G("Ulm", ["AU:Wurmser"], "AU 5I 2C"), G("Baden", ["AU:Quasdanovich"], "AU 5I"), G("Stuttgart", ["AU:Davidovich"], "AU 5I"),
+			G("Munich", ["AU:Meszaros"], "AU 1I"), G("Prague", [], "AU 1I"), G("Vienna", [], "AU 1I"),
+		],
+		"ogni_turno": r,
+		"rinforzi_data": {
+			"1796-08": [G("Prague", ["AU:@0"], "AU 1I"), G("Vienna", ["AU:@0"], "AU 1I"), G("Munich", ["AU:@0"], "AU 1I")],
+			"1796-11": [cav_fr.call(), G("Vienna", [], "AU 1C", {"rimpiazzo": true})],
+			"1797-01": [cav_fr.call(), G("Vienna", [], "AU 1C", {"rimpiazzo": true})],
+		},
+		"eventi": [{"id": "piemonte", "lato": 0, "se": {"t": "controlla", "lato": 0, "citta": ["Turin"]},
+			"effetti": [{"e": "elimina", "sub": ["Pm"], "t": "Il Piemonte firma l'armistizio ed esce dalla guerra"}]}],
+		"punti_citta": [{}, {}],
+		"vittoria_cond": [
+			{"vince": 1, "test": {"t": "controlla", "lato": 1, "citta": ["Paris"]}, "perche": "Gli Austriaci sono a Parigi."},
+			{"vince": 0, "test": {"t": "controlla", "lato": 0, "citta": ["Vienna"]}, "perche": "I Francesi sono a Vienna."},
+			{"vince": 0, "test": {"t": "e", "tests": [{"t": "controlla", "lato": 0, "citta": nove.slice(0, 7)}, {"t": "controlla", "lato": 0, "citta": ["Munich", "Prague"], "min": 1}]},
+				"perche": "I Francesi tengono Genova, Milano, Torino, Mantova, Venezia, Ulm, Innsbruck e Monaco o Praga: pace di Campoformio."},
+			{"vince": 1, "quando": "fine", "test": {"t": "e", "tests": [{"t": "controlla", "lato": 1, "citta": ["Vienna"], "libere": true}, {"t": "controlla", "lato": 1, "citta": nove, "min": 4}]},
+				"perche": "L'Austria tiene Vienna e almeno quattro delle nove città contese."},
+		],
+		"vince_default": -1,
+		"perche_default": "Pareggio: l'Austria resta ostile e la guerra continua (ma ha fatto meglio che nella storia).",
+		"vittoria": "L'Austria vince subito controllando Parigi; la Francia controllando Vienna, oppure Genova, Milano, Torino, Mantova, Venezia, Ulm, Innsbruck e Monaco o Praga. A fine ottobre 1797 vince l'Austria se tiene Vienna libera e almeno quattro di quelle nove città; altrimenti pareggio. Niente alleanze; Prussia e Svizzera (tranne Ginevra, francese) sono neutrali. Il Piemonte esce dalla guerra quando i Francesi prendono Torino.",
+		"obiettivi": [{"Genoa": 5, "Turin": 6, "Milan": 7, "Mantua": 6, "Venice": 4, "Innsbruck": 4, "Ulm": 5, "Munich": 6, "Prague": 4, "Vienna": 9},
+			{"Mainz": 3, "Coblenz": 2, "Strasbourg": 3, "Metz": 3, "Lyon": 3, "Paris": 6, "Genoa": 3, "Brussels": 2}],
+		"ia": {"difendi": [{"Paris": 5, "Mainz": 3, "Genoa": 3}, {"Vienna": 8, "Mantua": 5, "Munich": 4, "Ulm": 3}]},
+		"margine": 0,
+	}
+
+# =============================================================================================
+# Supplemento, V. Suvarov 1799
+
+static func _suvarov() -> Dictionary:
+	var dodici := ["Amsterdam", "Antwerp", "Brussels", "Genoa", "Milan", "Turin", "Mantua", "Venice", "Ulm", "Innsbruck", "Munich", "Prague"]
+	var r := []
+	for c in ["Lyon", "Rheims", "Brussels", "Paris"]:
+		r.append(G(c, [], "FR 1I", {"da": "1799-04", "rimpiazzo": true}))
+	for c in ["Prague", "Vienna", "Munich"]:
+		r.append(G(c, [], "AU 1I", {"da": "1799-04", "rimpiazzo": true}))
+	r.append(G("Vienna", [], "RU 1I", {"da": "1799-04", "rimpiazzo": true, "alt": ["Trieste"]}))
+	r.append(G("@trasporto:EN", [], "EN 1I", {"da": "1799-04", "rimpiazzo": true}))
+	return {
+		"id": "1799",
+		"titolo": "Suvarov 1799",
+		"sottotitolo": "Suvarov 1799 — la Seconda Coalizione",
+		"descrizione": "Marzo 1799: Bonaparte è bloccato in Egitto. L'Austria rinforza le sue armate, Inglesi e Russi preparano uno sbarco in Olanda e in Italia arriva il vecchio feldmaresciallo Suvarov con i suoi Russi, che vince una battaglia dopo l'altra.",
+		"durata": "Dieci turni mensili, da marzo a dicembre 1799 (supplemento).",
+		"mese": 2, "anno": 1799, "turni": 10,
+		"aree": [2, 3],
+		"lati": {"FR": 0, "H": 0, "I": 0, "Sz": 0, "AU": 1, "R": 1, "B": 1, "Da": 1, "Wu": 1, "Ba": 1, "Pm": 1, "RU": 1, "EN": 1},
+		"in_guerra": ["FR", "H", "I", "Sz", "AU", "R", "B", "Da", "Wu", "Ba"],
+		"controllo": {"Turin": 1},
+		"fonti": {"0": {"stati": ["FR", "Sz", "H"]}, "1": {"stati": ["AU", "B", "I"]}},
+		"fonti_naz": {"RU": {"citta": ["Trieste", "Vienna"], "trasporto": true}, "EN": {"porti_propri": true, "trasporto": true}},
+		"trasporti": ["EN", "RU"],
+		"sbarco": "vicino",
+		"rinforzi_regola": "persi",
+		"in_mare": [
+			{"zona": "NOR", "capi": ["EN:Uxbridge=York"], "unita": U("EN 4I"), "dove": "vicino", "vicino": ["Amsterdam", 1], "lato": 1},
+			{"zona": "NOR", "capi": ["RU:@0"], "unita": U("RU 4I"), "dove": "vicino", "vicino": ["Amsterdam", 1], "lato": 1},
+		],
+		"schieramento": [
+			G("Paris", ["FR:Moreau", "FR:@0"], "FR 10I"), G("Brussels", ["FR:Bessieres=Brune"], "FR 5I 1C"), G("Frankfurt", ["FR:Joubert=Jourdan"], "FR 5I 1C"),
+			G("Strasbourg", ["FR:@0"], "FR 5I 1C"), G("Geneva", ["FR:Massena"], "FR 5I 1C"), G("Venice", ["FR:@0"], "FR 5I 1C"),
+			G("Milan", ["FR:@0"], "FR 2I"), G("Genoa", [], "FR 2I"),
+			G("Toulon", [], "FR 1I"), G("Lyon", [], "FR 1I"), G("Verdun", [], "FR 1I"), G("Antwerp", [], "FR 1I"), G("Amsterdam", [], "FR 1I"),
+			G("Namur", [], "FR 1I"), G("Rheims", [], "FR 1I"), G("Mainz", [], "FR 1I"), G("Cologne", [], "FR 1I"), G("Coblenz", [], "FR 1I"),
+			G("Zurich", [], "FR 1I"), G("Mantua", [], "FR 1I"), G("Florence", [], "FR 1I"),
+			G("Trieste", ["AU:Melas", "AU:Kray", "RU:Kutusov=Suvarov", "RU:@0"], "AU 8I 2C; RU 5I 1C 1CC"), G("Prague", ["AU:Charles", "AU:@0"], "AU 8I 2C"),
+			G("Ulm", ["AU:Wurmser"], "AU 4I 1C"), G("Baden", ["AU:Quasdanovich"], "AU 4I 1C"), G("Wurzburg", ["AU:@0"], "AU 4I 1C"),
+			G("Munich", [], "AU 2I"), G("Vienna", ["RU:Constantine=Rimsky-Korsakov", "RU:@0"], "AU 2I; RU 5I 1C 1CC"),
+			G("Turin", ["AU:Colli:Pm"], "AU:Pm 2I"),
+		],
+		"ogni_turno": r,
+		"eventi": [{"id": "piemonte", "lato": 0, "se": {"t": "controlla", "lato": 0, "citta": ["Turin"]},
+			"effetti": [{"e": "elimina", "sub": ["Pm"], "t": "Il Piemonte firma l'armistizio ed esce dalla guerra"}]}],
+		"punti_citta": [{}, {}],
+		"vittoria_cond": [
+			{"vince": 1, "test": {"t": "controlla", "lato": 1, "citta": ["Paris"]}, "perche": "Gli Austriaci sono a Parigi."},
+			{"vince": 0, "test": {"t": "controlla", "lato": 0, "citta": ["Vienna"]}, "perche": "I Francesi sono a Vienna."},
+			{"vince": 0, "test": {"t": "e", "tests": [{"t": "controlla", "lato": 0, "citta": dodici.slice(0, 10)}, {"t": "controlla", "lato": 0, "citta": ["Munich", "Prague"], "min": 1}]},
+				"perche": "I Francesi tengono le Fiandre, l'Olanda, l'Italia del nord, Ulm, Innsbruck e Monaco o Praga."},
+			{"vince": 1, "quando": "fine", "test": {"t": "e", "tests": [{"t": "controlla", "lato": 1, "citta": ["Vienna"], "libere": true}, {"t": "controlla", "lato": 1, "citta": dodici, "min": 6}]},
+				"perche": "L'Austria tiene Vienna e almeno sei delle dodici città contese."},
+		],
+		"vince_default": -1,
+		"perche_default": "Pareggio: l'Austria resta ostile e la guerra continua.",
+		"vittoria": "L'Austria vince subito controllando Parigi; la Francia controllando Vienna, oppure Amsterdam, Anversa, Bruxelles, Genova, Milano, Torino, Mantova, Venezia, Ulm, Innsbruck e Monaco o Praga. A fine dicembre 1799 vince l'Austria se tiene Vienna libera e almeno sei di quelle dodici città; altrimenti pareggio. Niente alleanze; la Prussia è neutrale. Inglesi e Russi del Mare del Nord sbarcano accanto ad Amsterdam e il loro trasporto, dove sbarcano, li rifornisce; i Russi si riforniscono anche a Trieste e Vienna. Il Piemonte esce dalla guerra quando i Francesi prendono Torino.",
+		"obiettivi": [{"Vienna": 9, "Munich": 5, "Ulm": 4, "Innsbruck": 4, "Prague": 4, "Turin": 4, "Milan": 4, "Mantua": 4, "Venice": 4},
+			{"Milan": 6, "Mantua": 5, "Venice": 4, "Turin": 4, "Genoa": 4, "Amsterdam": 5, "Antwerp": 4, "Brussels": 4, "Zurich": 3, "Paris": 6}],
+		"ia": {"difendi": [{"Paris": 5, "Milan": 3, "Amsterdam": 3}, {"Vienna": 8, "Munich": 4, "Prague": 3}]},
+		"margine": 0,
+	}
+
+# =============================================================================================
+# Supplemento, II. La Marseillaise 1792 e III. Sambre et Meuse 1792-95
+
+static func _marsigliese(lungo: bool) -> Dictionary:
+	var imperiali := ["Brussels", "Namur", "Liege", "Antwerp", "Amsterdam", "Coblenz", "Mainz", "Cologne", "Stuttgart", "Baden", "Ulm", "Munich"]
+	var dieci := ["Brussels", "Antwerp", "Amsterdam", "Ulm", "Munich", "Innsbruck", "Genoa", "Milan", "Turin", "Mantua"]
+	var sch := [
+		G("Paris", [], "FR 2I"), G("Lille", ["FR:@1"], "FR 3I"), G("Amiens", ["FR:@1"], "FR 3I 1C"), G("#27,23", ["FR:@0"], "FR 3I"),
+		G("Rheims", ["FR:Lannes=Lafayette", "FR:Davout=Dumouriez"], "FR 5I 1C"), G("Metz", ["FR:Kellermann"], "FR 4GI"),
+		G("Verdun", [], "FR 2I"), G("Strasbourg", ["FR:@0", "FR:@0"], "FR 9I 1C"), G("Lyon", ["FR:@0"], "FR 2I"),
+		G("#25,24", ["AU:Beaulieu", "AU:@0"], "AU 5I 1C"), G("Milan", [], "AU 2I"), G("Prague", ["AU:@0"], "AU 5I 1C"),
+		G("Turin", ["AU:Colli:Pm"], "AU:Pm 5I"),
+		G("Brunswick", ["PR:Brunswick"], "PR:Br 2I; PR 3I 1C"), G("Cassel", ["PR:@0"], "PR:He 2I"),
+	]
+	for c in ["Grenoble", "Dijon", "Marseilles", "Toulon", "Toulouse", "Bordeaux", "Bayonne"]:
+		sch.append(G(c, [], "FR 1I"))
+	var ctl := {"Turin": 1, "Genoa": -1}
+	for c in imperiali:
+		sch.append(G(c, [], "AU 1L", {"dentro": true, "fisso": true}))
+		ctl[c] = 1
+	var ot := []
+	for c in ["Lyon", "Rheims", "Brussels", "Paris"]:
+		ot.append(G(c, [], "FR 1I", {"da": "1792-06"}))
+		ot.append(G(c, [], "FR 1I", {"da": "1792-06", "rimpiazzo": true}))
+	for c in ["Prague", "Vienna", "Munich"]:
+		ot.append(G(c, [], "AU 2I", {"da": "1792-06"}))
+		ot.append(G(c, [], "AU 1I", {"da": "1792-06", "rimpiazzo": true}))
+	ot.append(G("Cassel", [], "PR 1I", {"da": "1792-06", "alt": ["Brunswick"]}))
+	ot.append(G("Cassel", [], "PR 1I", {"da": "1792-06", "rimpiazzo": true, "alt": ["Brunswick"]}))
+	var rd := {
+		"1792-05": [G("Prague", ["AU:@0"], "AU 5I 1C")],
+		"1792-11": [G("Lyon", [], "FR 1C", {"rimpiazzo": true, "alt": ["Rheims", "Brussels", "Paris"]}), G("Vienna", [], "AU 1C", {"rimpiazzo": true})],
+	}
+	var d := {
+		"id": "1792s" if lungo else "1792",
+		"titolo": "Sambre et Meuse 1792-95" if lungo else "La Marseillaise 1792",
+		"sottotitolo": "The Revolution at War 1792-1795" if lungo else "La Patrie en danger",
+		"descrizione": ("La guerra per la sopravvivenza della Repubblica diventa una guerra per esportare la Rivoluzione: dal 1793 entrano in gioco la Spagna, l'Inghilterra e la Vandea in rivolta, e il governo rivoluzionario cerca nuovi generali, fino a Bonaparte." if lungo else "Aprile 1792: la Francia rivoluzionaria dichiara guerra all'Austria. Il duca di Brunswick minaccia Parigi, i Piemontesi scendono dalle Alpi e i generali del re sono di lealtà dubbia. La patria è in pericolo."),
+		"durata": ("Quarantacinque turni mensili, da aprile 1792 a dicembre 1795 (supplemento)." if lungo else "Nove turni mensili, da aprile a dicembre 1792 (supplemento)."),
+		"mese": 3, "anno": 1792, "turni": 45 if lungo else 9,
+		"aree": [1, 2, 3] if lungo else [2, 3],
+		"lati": {"FR": 0, "AU": 1, "R": 1, "B": 1, "Da": 1, "H": 1, "I": 1, "Wu": 1, "Ba": 1, "Pm": 1, "PR": 1, "He": 1, "Br": 1, "Ha": 1, "EN": 1, "SP": 1},
+		"in_guerra": ["FR", "AU", "R", "B", "Da", "H", "I", "Wu", "Ba", "PR", "He", "Br", "Ha"],
+		"neutrali": ["EN", "SP"],
+		"controllo": ctl,
+		"fonti": {"0": {"stati": ["FR", "H"]}, "1": {"stati": ["AU", "B", "I"]}},
+		"fonti_naz": {"PR": {"stati": ["PR", "He"], "citta": ["Hamburg", "Hanover"]}, "SP": {"citta": ["San Sebastian", "Burgos", "Barcelona"]},
+			"EN": {"citta": ["Hanover", "Amsterdam"], "porti_propri": true}},
+		"francesi_ridotti": true,
+		"morale": [{"naz": "FR", "tipi": ["I", "C"], "val": 1}, {"naz": "FR", "tipi": ["GI"], "val": 2, "regolari": false}],
+		"non_insieme": [["AU", "PR"]],
+		"no_marcia": ["PR"],
+		"vietati_naz": {"AU": ["PR", "He", "Br", "Ha"]},
+		"lealta": true,
+		"rivoluzione": {"esclusi": imperiali},
+		"rinforzi_regola": "persi",
+		"schieramento": sch,
+		"ogni_turno": ot,
+		"rinforzi_data": rd,
+		"eventi": [{"id": "piemonte", "lato": 0, "se": {"t": "controlla", "lato": 0, "citta": ["Turin"]},
+			"effetti": [{"e": "elimina", "sub": ["Pm"], "t": "Il Piemonte firma l'armistizio ed esce dalla guerra"}]}],
+		"punti_citta": [{}, {}],
+		"vittoria_cond": [
+			{"vince": 1, "test": {"t": "controlla", "lato": 1, "citta": ["Paris"]}, "perche": "Gli Austriaci sono a Parigi: la Rivoluzione è finita."},
+			{"vince": 0, "test": {"t": "controlla", "lato": 0, "citta": ["Vienna"]}, "perche": "I Francesi sono a Vienna."},
+		],
+		"punti_1792": {"citta": dieci},
+		"vittoria": "La Francia perde subito se gli Austriaci controllano Parigi e vince subito se controlla Vienna. A fine partita ogni lato ha un punto per ognuna di Bruxelles, Anversa, Amsterdam, Ulm, Monaco, Innsbruck, Genova, Milano, Torino e Mantova che controlla; la Francia perde un punto per ogni altra città maggiore francese in mano nemica. A pari punti vince la Francia. Le guarnigioni imperiali restano nelle loro città; Austriaci e Prussiani non stanno mai nello stesso esagono, non si mandano rinforzi e i Prussiani non fanno marce forzate; gli Austriaci non entrano in Prussia. Fanteria francese con morale 1, Les Blancs (la Guardia) con 2. Al posto delle alleanze, la fase rivoluzionaria: con 7 la leva in massa, poi con 6 la Marsigliese (+1 ai Francesi in battaglia). Prova di lealtà per i generali francesi che perdono una battaglia.",
+		"obiettivi": [{"Brussels": 5, "Antwerp": 4, "Amsterdam": 4, "Namur": 2, "Liege": 2, "Coblenz": 2, "Mainz": 3, "Cologne": 3, "Turin": 4, "Genoa": 3, "Milan": 4, "Ulm": 3, "Munich": 4},
+			{"Paris": 9, "Rheims": 3, "Verdun": 3, "Metz": 3, "Lille": 3, "Strasbourg": 3, "Lyon": 2}],
+		"ia": {"difendi": [{"Paris": 6, "Lille": 3, "Strasbourg": 3}, {"Brussels": 4, "Mainz": 3, "Milan": 3, "Vienna": 8}]},
+		"margine": 0,
+	}
+	if lungo:
+		d["rivoluzione"] = {"esclusi": [], "interventi": 10, "stati_intervento": ["SP"],
+			"sacchetto": ["FR:Desaix", "FR:Massena", "FR:Moreau", "FR:Kleber", "FR:Victor", "FR:Augereau", "FR:Joubert",
+				"AU:Davidovich", "AU:Wurmser", "AU:Quasdanovich", "AU:Meszaros", "AU:Mack", "EN:Uxbridge=York"],
+			"aggiunte": [[34, "FR:Bonaparte"], [34, "AU:Charles"]],
+			"schieramento_intervento": [G("Amsterdam", [], "EN:H 3I"), G("Hanover", [], "EN:K 3I"),
+				G("San Sebastian", [], "SP 2I"), G("Barcelona", ["SP:Castanos"], "SP 3I"), G("Burgos", ["SP:Cuesta"], "SP 3I 1C"),
+				G("Pamplona", [], "SP 1I"), G("Saragossa", [], "SP 1I")],
+			"mare_intervento": [{"zona": "MOC", "capi": ["EN:@0"], "unita": U("EN 2I"), "dove": "vicino", "vicino": ["Toulon", 2], "lato": 1}]}
+		d["pool"] = {"EN||I": 4, "EN||M": 4, "EN||P": 2}
+		var se_int := {"t": "flag", "k": "intervento"}
+		d["ogni_turno"].append_array([
+			G("Hanover", [], "EN 1I", {"rimpiazzo": true, "se": se_int, "alt": ["Amsterdam"]}),
+			G("Nantes", [], "EN 1M", {"rimpiazzo": true, "se": se_int}),
+			G("Burgos", [], "SP 1I", {"rimpiazzo": true, "se": se_int, "alt": ["San Sebastian", "Barcelona"]}),
+		])
+		d["rinforzi_data"]["1792-11"] = rd["1792-11"]
+		for anno in [1793, 1794, 1795]:
+			d["rinforzi_data"]["%d-11" % anno] = [G("Lyon", [], "FR 1C", {"alt": ["Paris"]}), G("Lyon", [], "FR 1C", {"rimpiazzo": true, "alt": ["Rheims", "Brussels", "Paris"]}), G("Vienna", [], "AU 1C", {"rimpiazzo": true})]
+		d["vittoria"] += " Dal gennaio 1793 si gioca anche la Spagna: nella fase rivoluzionaria si pesca un capo dal sacchetto (Bonaparte e Carlo dal 1795) e un dado più le città maggiori francesi perse (e uno con la leva in massa) decide: con 6 entrano in guerra Inghilterra e Spagna e insorge la Vandea, con 7 arrivano gli emigrati, al secondo 7 scoppia la rivolta realista (niente rinforzi francesi per due turni)."
+	return d
+
+# =============================================================================================
+# Supplemento, I. Kosciuszko: la guerra russo-polacca del 1792
+
+static func _kosciuszko() -> Dictionary:
+	var ot := [
+		G("Warsaw", [], "FR:Po 1I", {"da": "1792-06"}), G("Cracow", [], "FR:Po 1I", {"da": "1792-06"}),
+		G("Warsaw", [], "FR:Po 2I", {"da": "1792-06", "rimpiazzo": true, "alt": ["Cracow"]}),
+		G("Riga", [], "RU 1I", {"da": "1792-06"}), G("Kiev", [], "RU 1I", {"da": "1792-06"}), G("Smolensk", [], "RU 1I", {"da": "1792-06"}),
+		G("Moscow", [], "RU 2I", {"da": "1792-06"}), G("St Petersburg", [], "RU 2I", {"da": "1792-06"}),
+		G("Riga", [], "RU 2I", {"da": "1792-06", "rimpiazzo": true, "alt": ["St Petersburg"]}),
+		G("Kiev", [], "RU 2I", {"da": "1792-06", "rimpiazzo": true, "alt": ["Smolensk"]}),
+	]
+	var polacche := ["Warsaw", "Posen", "Cracow", "Lublin", "Grodno", "Minsk", "Pinsk", "Brest-Litovsk"]
+	var ctl := {}
+	for c in polacche:
+		ctl[c] = 0
+	return {
+		"id": "1792k",
+		"titolo": "Kosciuszko 1792",
+		"sottotitolo": "The Polish-Russian War of 1792",
+		"descrizione": "Maggio 1792: Caterina la Grande appoggia i nobili della confederazione di Targowica contro la nuova costituzione polacca. Il principe Poniatowski e Tadeusz Kosciuszko difendono la Polonia contro il colosso russo, mentre il re esita e la Prussia volta le spalle.",
+		"durata": "Otto turni mensili, da maggio a dicembre 1792 (supplemento). I Polacchi sono il lato francese.",
+		"mese": 4, "anno": 1792, "turni": 8,
+		"aree": [3, 4],
+		"lati": {"FR": 0, "RU": 1},
+		"in_guerra": ["RU"],
+		"aperti_raggio": {"Warsaw": 2, "Posen": 1, "Cracow": 1, "Lublin": 1, "Pinsk": 1, "Minsk": 1, "Grodno": 1, "Brest-Litovsk": 1},
+		"turno1_vietato": {"lato": 0, "stati": ["RU"], "no_attacchi": true},
+		"controllo": ctl,
+		"fonti": {"0": {"citta": ["Warsaw", "Posen", "Cracow", "Minsk", "Grodno", "Brest-Litovsk", "Riga", "Smolensk", "Kiev"]},
+			"1": {"citta": ["Riga", "Kiev", "Smolensk", "Moscow", "St Petersburg"]}},
+		"valori_capi": {"Kutusov": 1},
+		"polonia": {"citta": polacche},
+		"rinforzi_regola": "persi",
+		"pool": {"FR|Po|I": 5, "FR||P": 2},
+		"schieramento": [
+			G("Minsk", ["FR:Poniatowski"], "FR:Po 4I 1C"), G("Pinsk", ["FR:Lannes=Kosciuszko"], "FR:Po 2I"),
+			G("Warsaw", ["FR:@0"], "FR:Po 2I 1C"), G("Cracow", ["FR:@0"], "FR:Po 1I 1C"),
+			G("Grodno", ["FR:@0"], "FR:Po 1I"), G("Brest-Litovsk", ["FR:@0"], "FR:Po 1I"), G("Posen", ["FR:@0"], "FR:Po 1I"),
+			G("Kiev", ["RU:Buxhowden=Kahkovsky", "RU:Kutusov", "RU:Tormazov"], "RU 10I 2C 1CC"),
+			G("Riga", ["RU:Constantine=Krechetnikov", "RU:Docturov=Dolgorukov"], "RU 6I 1C 1CC"),
+			G("Smolensk", ["RU:@0"], "RU 3I 1C 1CC"), G("Pskov", ["RU:@0"], "RU 3I 1C"),
+			G("Moscow", ["RU:@0"], "RU 2I 1GI"), G("St Petersburg", [], "RU 2GI 1GC"),
+		],
+		"ogni_turno": ot,
+		"eventi": [{"id": "partigiani", "lato": 0, "da": "1792-07", "effetti": [{"e": "partigiani", "naz": "FR", "stato": "RU", "n": 2, "t": "Partigiani polacchi nelle foreste e nelle paludi"}]}],
+		"punti_citta": [{}, {}],
+		"vittoria_cond": [
+			{"vince": 1, "test": {"t": "e", "tests": [{"t": "controlla", "lato": 1, "citta": ["Warsaw"]}, {"t": "controlla", "lato": 1, "citta": ["Posen", "Cracow", "Brest-Litovsk", "Grodno", "Minsk"], "min": 3}]},
+				"perche": "I Russi controllano Varsavia e tre delle città maggiori polacche."},
+		],
+		"vittoria": "La Russia vince subito controllando Varsavia e tre fra Posen, Cracovia, Brest-Litovsk, Grodno e Minsk, oppure la seconda volta che il dado delle alleanze dà 7 (il re capitola). A fine dicembre: 2 punti per Varsavia libera e 1 per ognuna delle altre cinque città a chi le controlla; ai Polacchi 1 punto se sono assediati a Varsavia e 1 per Riga, Smolensk e Kiev se le tengono; 2 punti a chi ha più punti d'alleanza. A pari punti vincono i Polacchi. Alleanze (da luglio): punti per vittorie e città; il primo 7 dà un punto permanente alla Russia, ogni 0 uno ai Polacchi. I capi polacchi lontani dal nemico in una città polacca mobilitano nuova fanteria (dado più valore, 4 o più) restando fermi. A maggio i Polacchi non entrano in Russia e non attaccano. Austria, Prussia, Sassonia e Svezia sono neutrali.",
+		"obiettivi": [{"Riga": 4, "Smolensk": 4, "Kiev": 4, "Minsk": 3, "Grodno": 3, "Vilna": 2},
+			{"Warsaw": 9, "Posen": 3, "Cracow": 3, "Brest-Litovsk": 4, "Grodno": 4, "Minsk": 4}],
+		"ia": {"difendi": [{"Warsaw": 8, "Brest-Litovsk": 3, "Grodno": 3}, {"Kiev": 4, "Riga": 4, "Smolensk": 4}]},
+		"margine": 0,
+	}

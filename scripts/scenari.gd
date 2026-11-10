@@ -913,7 +913,8 @@ static func _1814() -> Dictionary:
 		"vince_default": 0,
 		"perche_default": "Parigi resiste fino a maggio 1814.",
 		"obiettivi": [{"Frankfurt": 2, "Brussels": 2, "Liege": 2}, {"Paris": 14, "Lyon": 3, "Rheims": 3, "Metz": 2, "Strasbourg": 2, "Bayonne": 2, "Toulouse": 2}],
-		"ia": {"difendi": [{"Paris": 14, "Lyon": 3, "Rheims": 3}, {}]},
+		"ia": {"difendi": [{"Paris": 14, "Lyon": 3, "Rheims": 3}, {}],
+			"asse": {"lato": 1, "naz": ["AU", "RU", "PR"], "raduno": "Baden", "parti": 2, "obiettivo": "Paris"}},
 		"vittoria": "La Coalizione vince se a fine maggio 1814 ha almeno un punto forza rifornito e non assediato a Parigi; altrimenti vince la Francia. Niente alleanze. Quando il nemico entra in Francia nascono 2 PF di partigiani (si rimpiazzano se eliminati). Gli Inglesi spostano ogni turno 2 PF e un capo via mare fra i porti non francesi; la rivolta olandese dà rinforzi ad Amsterdam, Anversa e Bruxelles liberate.",
 		"margine": 0,
 	}

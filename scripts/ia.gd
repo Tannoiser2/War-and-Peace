@@ -198,7 +198,10 @@ func _pianifica(lato: int) -> void:
 		var c: Dictionary = m.s["capi"][id]
 		var h: String = c["h"]
 		var bersaglio: Array
-		if scelto_qui.has(h):
+		var ax := _bersaglio_asse(h, lato, c["n"])
+		if not ax.is_empty():
+			bersaglio = ax
+		elif scelto_qui.has(h):
 			bersaglio = scelto_qui[h]
 		else:
 			bersaglio = _scegli_bersaglio(h, lato, obiettivi, difese, assegnati)
@@ -229,6 +232,17 @@ func _pianifica(lato: int) -> void:
 				var kk: String = "%s@%s" % [u["n"], Mappa.nome(u["h"])]
 				det[kk] = int(det.get(kk, 0)) + int(u["sp"])
 		print("   SENZA ", det)
+		if OS.get_environment("WP_DEBUG_IA") == "2":
+			for h in m.esagoni_di(lato):
+				var t := {}
+				for id in m.unita_in(h, lato):
+					var u: Dictionary = m.s["unita"][id]
+					var kk: String = "%s%s" % [u["n"], u["t"]]
+					t[kk] = int(t.get(kk, 0)) + int(u["sp"])
+				var cc := []
+				for c in m.capi_in(h, lato):
+					cc.append("%s(%s)" % [m.s["capi"][c]["nome"], m.s["capi"][c]["n"]])
+				print("   PILA %s %s %s" % [Mappa.nome(h), str(t), ",".join(cc)])
 		for p in piano:
 			var cc: Dictionary = m.s["capi"][p["capo"]]
 			print("PIANO t%d l%d %s (%dPF) %s -> %s [%s]" % [m.s["turno"], lato, cc["nome"], m.sp_in(cc["h"], lato), Mappa.nome(cc["h"]), Mappa.nome(p["verso"]) if p["verso"] != "" else "-", p["tipo"]])
@@ -340,7 +354,35 @@ func _ammassare(lato: int) -> String:
 			return h
 	return ""
 
+## Strategia di scenario: le nazioni indicate si radunano in un punto e poi marciano insieme sull'obiettivo
+func _asse(lato: int) -> Dictionary:
+	var a: Dictionary = m.scen.get("ia", {}).get("asse", {})
+	if a.is_empty() or int(a["lato"]) != lato or not _attivo("ASSE"):
+		return {}
+	return a
+
+func _bersaglio_asse(h: String, lato: int, naz: String) -> Array:
+	var a := _asse(lato)
+	if a.is_empty() or not naz in a["naz"]:
+		return []
+	var ob := Mappa.hex(str(a["obiettivo"]))
+	if m.controllore(ob) == lato and not m.nemico_fuori(ob, lato):
+		return []
+	if int(m.s["turno"]) < int(a["parti"]):
+		var r := m._risolvi_hex(str(a["raduno"]))
+		if r == "" or campo(r).get(h, 9999) <= 2:
+			return [h, 0.0, "fermo"]
+		return [r, 20.0, "raduno"]
+	return [ob, 60.0, "asse"]
+
 func _scegli_bersaglio(h: String, lato: int, obiettivi: Array, difese: Array, assegnati: Dictionary) -> Array:
+	var naz0 := ""
+	for id in m.capi_in(h, lato):
+		naz0 = m.s["capi"][id]["n"]
+		break
+	var ax := _bersaglio_asse(h, lato, naz0)
+	if not ax.is_empty():
+		return ax
 	var rad := _ammassare(lato)
 	if rad != "" and h != rad:
 		return [rad, 10.0, "difesa"]
@@ -480,6 +522,8 @@ func _concretizza(p: Dictionary) -> Dictionary:
 	# truppe al seguito: la fanteria del suo colore e la cavalleria, fino al massimo
 	var porta := _truppe(capo, h, lato)
 	if porta.is_empty() and m.sp_in(h, lato) > 0:
+		if OS.get_environment("WP_DEBUG_IA") == "2":
+			print("SENZA TRUPPE %s a %s mp %d" % [c["nome"], Mappa.nome(h), int(c["mp"])])
 		return {}
 	# guarnigione: se la città è obiettivo da difendere e il nemico è vicino, lascia qualcuno
 	var verso: String = p["verso"]
@@ -491,10 +535,14 @@ func _concretizza(p: Dictionary) -> Dictionary:
 	var rag2 := m.raggiungibili(capo, porta, fm)
 	if rag2.is_empty():
 		return {}
-	var decisivo := float(_valore_obiettivo(verso, lato)) >= 8.0
-	if decisivo and not inverno_freddo():
+	if p["tipo"] == "fermo":
+		return {}
+	var decisivo: bool = float(_valore_obiettivo(verso, lato)) >= 8.0 or p["tipo"] == "asse"
+	if decisivo and (not inverno_freddo() or p["tipo"] == "asse"):
 		rag2 = m.raggiungibili(capo, porta, 3 if carattere > 0 else 2)
 	var d := _verso_migliore(capo, porta, rag2, campo(verso), lato, verso, p["tipo"] == "esercito", decisivo)
+	if OS.get_environment("WP_DEBUG_IA") == "2" and d.is_empty():
+		print("FERMO %s a %s: porta %s, raggiungibili %d" % [c["nome"], Mappa.nome(h), str(porta), rag2.size()])
 	if not d.is_empty() and _attivo("DEPOSITI"):
 		var rr := m.raggiungibili(capo, porta, int(d["fm"]))
 		var dep := _depositi(capo, porta, rr, str(d["verso"]), lato)

@@ -40,6 +40,7 @@ Dopo ogni round: l'attaccante decide se continuare, il difensore se ritirarsi, p
 [i]Manovra sul retro (U)[/i]: al primo round di una sola battaglia per fase, il Francese può tentare di far entrare un'armata con un capo che sta vicina al nemico ma non all'esagono che attacca: un dado + il comando del capo (- Wellington se difende) di 5 o più. Se riesce, il primo round ha +1 se la forza che attacca è la più grande, -1 se è la più piccola.
 [i]Carica di cavalleria (V)[/i]: a inizio round chi ha cavalleria può caricare (sceglie prima la forza più grande): +1 al tiro se carica la più grande, -1 se carica la più piccola; le perdite cadono prima sulla cavalleria. Non insieme alla Guardia.
 [i]Guardia Imperiale (W)[/i]: con Napoleone al comando e punti forza della Guardia, il Francese può impegnarla: morale 3 per il round (zero se la forza è demoralizzata), le perdite cadono prima sulla Guardia.
+[i]Nebbia di guerra (Z)[/i]: le armate nemiche si vedono come una sola pedina con la bandiera, senza il numero dei punti forza; il capo si riconosce solo quando è vicino alle tue truppe. Le forze di una battaglia si scoprono dopo la dichiarazione degli attacchi. L'IA non ne tiene conto: vede tutta la mappa.
 [i]Combattimento demoralizzato (Y)[/i]: a fine round chi ha morale zero tira un dado meno il comando del suo capo e perde altrettanti punti forza come prigionieri, ma non è più costretto a ritirarsi o ad arrendersi.
 
 [b]Le flotte[/b] (Grand Campaign Game, sezione F; scenario «Egitto 1798 con le flotte»)

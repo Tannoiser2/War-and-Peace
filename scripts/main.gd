@@ -470,6 +470,11 @@ func _aggiorna_pezzi() -> void:
 		var imgs := _pedine_gruppo(h, lato, dentro)
 		if imgs.is_empty():
 			continue
+		var nascosto := not _visibile(h, lato)
+		if nascosto:
+			# nebbia di guerra: una sola pedina, il capo se è vicino alle nostre truppe, altrimenti la bandiera
+			var capi := m.capi_in(h, lato) if not dentro else []
+			imgs = [m.s["capi"][capi[0]]["img"]] if not capi.is_empty() and _capo_scoperto(h) else ["seg_bandiera_" + _naz_gruppo(h, lato)]
 		var base := _v3(h)
 		# due lati nello stesso esagono (assedio): le pile si affiancano
 		var off := Vector3.ZERO
@@ -489,9 +494,9 @@ func _aggiorna_pezzi() -> void:
 		for id in m.unita_in(h, lato):
 			if m.s["unita"][id]["in"] == dentro:
 				sp += int(m.s["unita"][id]["sp"])
-		if sp > 0:
+		if sp > 0 or nascosto:
 			var lb := Label3D.new()
-			lb.text = str(sp)
+			lb.text = "?" if nascosto else str(sp)
 			lb.font = F_TITOLO
 			lb.font_size = 64
 			lb.pixel_size = 0.0034
@@ -624,6 +629,49 @@ func _aggiorna_pezzi() -> void:
 		t.position = _v3(h) + Vector3(0.0, 0, 0.0)
 		t.scale = Vector3(0.55, 1, 0.55)
 		nodo_pezzi.add_child(t)
+
+# ---------- nebbia di guerra (regola Z)
+
+## Il lato che guarda la mappa (-1 = si vede tutto): online il proprio, contro l'IA il lato umano,
+## in due allo stesso dispositivo chi deve decidere ora
+func _osservatore() -> int:
+	if m == null or not m.opzione("nebbia"):
+		return -1
+	if online:
+		for l in [0, 1]:
+			if posti_lati[l] == mio_posto:
+				return l
+		return -1
+	if umani[0] and umani[1]:
+		var r := m.richiesta()
+		return int(r.get("lato", m.s["lato"])) if not r.is_empty() else int(m.s["lato"])
+	if umani[0]:
+		return 0
+	if umani[1]:
+		return 1
+	return -1
+
+## Le forze di un lato in un esagono sono visibili all'osservatore? Le proprie e quelle dei neutrali
+## sempre; quelle nemiche solo nelle battaglie dichiarate (dopo la dichiarazione degli attacchi)
+func _visibile(h: String, lato: int) -> bool:
+	var oss := _osservatore()
+	if oss < 0 or lato == oss or lato == 2:
+		return true
+	if m.s["fase"] == "battaglie":
+		for b in m.s["batt"]:
+			if h in b["ha"] or h in b["hd"] or h == b["att"] or h == b["dif"]:
+				return true
+	return false
+
+## Un capo nemico nascosto mostra la sua faccia solo se è vicino alle truppe dell'osservatore
+func _capo_scoperto(h: String) -> bool:
+	var oss := _osservatore()
+	if m.sp_in(h, oss) > 0 or not m.capi_in(h, oss).is_empty():
+		return true
+	for v in Mappa.vicini(h):
+		if m.sp_in(v[0], oss) > 0 or not m.capi_in(v[0], oss).is_empty():
+			return true
+	return false
 
 func _naz_gruppo(h: String, lato: int) -> String:
 	var conta := {}
@@ -877,7 +925,9 @@ func _mostra_tip(h: String, pos: Vector2) -> void:
 		var capi := []
 		for id in m.capi_in(h, l):
 			capi.append("%s (%d)" % [m.s["capi"][id]["nome"], int(m.s["capi"][id]["v"])])
-		if sp > 0 or not capi.is_empty():
+		if (sp > 0 or not capi.is_empty()) and not _visibile(h, l):
+			righe.append("%s: forze sconosciute" % Dati.LATI_BREVI[l])
+		elif sp > 0 or not capi.is_empty():
 			righe.append("%s: %d PF%s" % [Dati.LATI_BREVI[l], sp, (" — " + ", ".join(capi)) if not capi.is_empty() else ""])
 	if rag.has(h):
 		var r: Dictionary = rag[h]
@@ -962,6 +1012,7 @@ const REGOLE_FACOLTATIVE := [
 	["carica", "Carica di cavalleria (V)", "+1 alla forza più grande, -1 alla più piccola; le perdite vanno sulla cavalleria"],
 	["guardia", "Guardia Imperiale (W)", "con Napoleone, morale 3 per il round; le perdite vanno sulla Guardia"],
 	["demoralizzato", "Combattimento demoralizzato (Y)", "a morale zero si perdono prigionieri ma non si è costretti a ritirarsi"],
+	["nebbia", "Nebbia di guerra (Z)", "le armate nemiche restano nascoste finché non le attacchi"],
 ]
 
 func _pannello_regole(v: VBoxContainer) -> void:
@@ -1632,6 +1683,14 @@ func _info_esagono(h: String) -> void:
 		var ids := m.unita_in(h, l)
 		if capi.is_empty() and ids.is_empty():
 			continue
+		if not _visibile(h, l):
+			pannello_info.add_child(etichetta("%s — forze sconosciute" % Dati.LATI[l], F_GRASSETTO, 19, COL_LATO[l].darkened(0.3)))
+			var noti := []
+			if _capo_scoperto(h):
+				for id in capi:
+					noti.append(m.s["capi"][id]["nome"])
+			pannello_info.add_child(etichetta("Nebbia di guerra: le truppe nemiche si vedono solo quando le attacchi." + (" Al comando: " + ", ".join(noti) + "." if not noti.is_empty() else (" C'è un capo." if not capi.is_empty() else "")), F_CORSIVO, 17, C_SPENTO))
+			continue
 		pannello_info.add_child(etichetta("%s — %d PF" % [Dati.LATI[l], m.sp_in(h, l)], F_GRASSETTO, 19, COL_LATO[l].darkened(0.3)))
 		for id in capi:
 			var c: Dictionary = m.s["capi"][id]
@@ -1743,7 +1802,7 @@ func _pannello_movimento() -> void:
 	# nemici nello stesso esagono, ecc.
 	for l in [1 - lato]:
 		if m.sp_in(h, l) > 0:
-			pannello_info.add_child(etichetta("Nemici qui: %d PF" % m.sp_in(h, l), F_GRASSETTO, 18, C_ROSSO))
+			pannello_info.add_child(etichetta(("Nemici qui: %d PF" % m.sp_in(h, l)) if _visibile(h, l) else "Nemici qui", F_GRASSETTO, 18, C_ROSSO))
 
 func _scegli_capo(id: String) -> void:
 	if sel_capo == id:

@@ -25,9 +25,17 @@ func _run():
 	main.scelta_lato = 0
 	if modo == "tattica":
 		main.opz_regole = {"matrice": true, "carica": true, "guardia": true, "aggiramento": true}
+	if modo == "nebbia":
+		main.opz_regole = {"nebbia": true}
 	main.scelta_scen = OS.get_environment("WP_SCEN") if OS.get_environment("WP_SCEN") != "" else "1805"
 	main._avvia_locale()
 	await shot("partita")
+	if modo == "nebbia":
+		main.sel_hex = Mappa.hex("Ulm")
+		main._aggiorna_tutto()
+		main._centra_su(Mappa.hex("Ulm"), 14.0)
+		await shot("nebbia")
+		quit(); return
 	if modo == "partita":
 		quit(); return
 	if modo == "navale":

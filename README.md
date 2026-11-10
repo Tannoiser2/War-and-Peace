@@ -43,7 +43,9 @@ Si gioca qui: https://tannoiser2.github.io/War-and-Peace/ (e nella ludoteca: htt
   Table e la Naval Damage Table, inseguimento, blocco, trasporti senza scorta, burrasche, Nelson.
 - Regole facoltative di battaglia, da scegliere a inizio partita (anche online, nella stanza): matrice tattica
   (Optional Tactical Matrix del foglio delle tabelle, con i segnalini originali), manovra sul retro (U), carica di
-  cavalleria (V), Guardia Imperiale (W), combattimento demoralizzato (Y). L'IA sceglie la tattica con la strategia
+  cavalleria (V), Guardia Imperiale (W), combattimento demoralizzato (Y), nebbia di guerra (Z: le pile nemiche
+  sono una bandiera con "?", il capo si vede solo vicino alle proprie truppe, le battaglie si scoprono dopo la
+  dichiarazione; è solo dell'interfaccia, l'IA vede tutto). L'IA sceglie la tattica con la strategia
   mista d'equilibrio della matrice (o la ritirata se vuole lasciare il campo), carica quando è la forza più grande,
   impegna la Guardia quando il morale francese è basso e tenta sempre la manovra sul retro. Per le simulazioni:
   `WP_OPZIONI=matrice,carica,guardia,aggiramento,demoralizzato`.

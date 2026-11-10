@@ -17,7 +17,7 @@ func _run():
 	main.on_nome.text = "Host" if role == "host" else "Ospite"
 	main.on_lato.selected = 0
 	if role == "host":
-		main.opz_regole = {"matrice": true, "carica": true, "guardia": true}
+		main.opz_regole = {"matrice": true, "carica": true, "guardia": true, "carte": true}
 		await main._online_crea()
 		var f := FileAccess.open(cf, FileAccess.WRITE)
 		f.store_string(main.codice)

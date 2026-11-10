@@ -75,6 +75,8 @@ func nuova(cfg: Dictionary) -> void:
 		if Mappa.ha_citta(h) and sp_in(h, 0) > 0:
 			s["occ_inizio"][h] = true
 	_log("[b]%s[/b] — %s %d" % [scen["titolo"], Dati.MESI[s["mese"]], s["anno"]])
+	if opzione("carte"):
+		_prepara_carte()
 	_inizia_segmento()
 
 ## Lo scenario in vigore alla data corrente: le "fasi" (scenari collegati) cambiano aree, regole
@@ -628,6 +630,11 @@ func rifornita(u: Dictionary, lato: int) -> bool:
 	# sbarcati dal mare in questo segmento, unità neutrali, primo turno di alcuni scenari
 	if u.get("sb", false) or lato == 2:
 		return true
+	# carta dei carri dei viveri
+	if s.has("carte") and s["carte"]["viveri"].has(u["h"]):
+		var vv: Array = s["carte"]["viveri"][u["h"]]
+		if int(vv[0]) == int(s["turno"]) and int(vv[1]) == lato:
+			return true
 	if int(s["turno"]) == 1 and lato in scen.get("riforniti_turno1", []):
 		return true
 	if u["t"] in ["P"] or (u["s"] != "" and u["s"] in scen.get("sempre_riforniti", [])):
@@ -665,18 +672,32 @@ func _inizia_segmento() -> void:
 				s["flag"]["nilo_no"] = int(s["turno"])
 				_log("Il Nilo non porta rifornimenti ai Francesi questo mese (dado %d)." % t)
 	calcola_rifornimento(l)
+	_carte_inizio_segmento()
+	# carte evento da giocare prima del logoramento
+	if s["turno"] > 1 and _apri_finestra("logoramento", [l], "seg"):
+		s["fase"] = "carte"
+		return
+	_inizia_segmento_dopo_logoramento()
+
+func _inizia_segmento_dopo_logoramento() -> void:
+	var l: int = s["lato"]
 	if s["turno"] > 1:
 		_fase_logoramento()
 		_fase_alleanze()
+		if carte_attive():
+			_pesca_carta(l)
 	_eventi_scenario()
 	_fase_rinforzi()
+	_carte_leve(l)
 	_punti_rimpiazzo()
 	if _controlla_vittoria_immediata():
 		return
 	if _ha_navi(l):
 		s["fase"] = "navale"
-		return
-	s["fase"] = "movimento"
+	else:
+		s["fase"] = "movimento"
+	# carte evento d'inizio movimento
+	_apri_finestra("movimento", [l], "")
 
 func _fase_logoramento() -> void:
 	var l: int = s["lato"]
@@ -684,7 +705,28 @@ func _fase_logoramento() -> void:
 	eventi.append({"k": "dado", "titolo": "Logoramento", "dadi": [tiro]})
 	var perdite_tot := 0
 	var righe := []
+	var t0 := tiro
+	if carte_attive() and int(s["carte"].get("magazzini", -1)) == l:
+		s["carte"].erase("magazzini")
+		t0 -= 1
 	for h in esagoni_di(l):
+		if carte_attive() and s["carte"]["viveri"].has(h) and int(s["carte"]["viveri"][h][0]) == int(s["turno"]) and int(s["carte"]["viveri"][h][1]) == l:
+			continue
+		var p := _logora_esagono(h, l, t0)
+		if p > 0:
+			perdite_tot += p
+			righe.append("%s %d" % [Mappa.nome(h), p])
+	if perdite_tot > 0:
+		_log("Logoramento (dado %d): perdite %s" % [tiro, ", ".join(righe)])
+	else:
+		_log("Logoramento (dado %d): nessuna perdita" % tiro)
+	if tiro == 6:
+		_logoramento_navale(l)
+	_compatta()
+
+## Logoramento di un esagono con il dado dato: punti forza persi
+func _logora_esagono(h: String, l: int, tiro: int) -> int:
+	if true:
 		var ids := unita_in(h, l)
 		var pf := 0
 		var tutti_fr := true
@@ -715,7 +757,7 @@ func _fase_logoramento() -> void:
 			if u["in"] and s["assedi"].has(h):
 				dentro_assedio = int(s["assedi"][h]["l"])
 		if pf < 3:
-			continue
+			return 0
 		var t := tiro
 		if tutti_fr and not scen.get("francesi_ridotti", false): t -= 1
 		if tutti_casa: t -= 1
@@ -729,15 +771,8 @@ func _fase_logoramento() -> void:
 		p = absi(p)
 		if p > 0:
 			_elimina_sp(colpibili, p, ast, "")
-			perdite_tot += p
-			righe.append("%s %d" % [Mappa.nome(h), p])
-	if perdite_tot > 0:
-		_log("Logoramento (dado %d): perdite %s" % [tiro, ", ".join(righe)])
-	else:
-		_log("Logoramento (dado %d): nessuna perdita" % tiro)
-	if tiro == 6:
-		_logoramento_navale(l)
-	_compatta()
+		return p
+	return 0
 
 func _a_casa(u: Dictionary, h: String) -> bool:
 	var st := Mappa.stato(h)
@@ -1277,6 +1312,14 @@ func _fine_segmento() -> void:
 
 ## La decisione che il gioco aspetta ora: {k, lato, ...}
 func richiesta() -> Dictionary:
+	# carte evento: prima le risposte a una carta appena giocata, poi le finestre aperte
+	if s.has("reazione"):
+		var r: Dictionary = s["reazione"]
+		return {"k": "reazione", "lato": r["lato"], "carta": r["opz"], "da": r["da"], "opzioni": r["opzioni"]}
+	if s.has("finestra") and not s["finestra"]["lati"].is_empty():
+		var f: Dictionary = s["finestra"]
+		var l := int(f["lati"][0])
+		return {"k": "carta", "lato": l, "w": f["w"], "opzioni": opzioni_carte(l, str(f["w"])) + ["passo"]}
 	match s["fase"]:
 		"navale":
 			return {"k": "navale", "lato": s["lato"]}
@@ -1320,7 +1363,12 @@ func applica(d: Dictionary) -> bool:
 		"annulla":
 			ok = rq["k"] == "dichiara" and _annulla(str(d.get("su", "")))
 		"scelta":
-			ok = rq["k"] in ["citta", "assalto", "continua", "resta", "contro", "aggira", "guardia", "carica", "tattica"] and _scelta(rq, str(d.get("v", "")))
+			if rq["k"] == "carta":
+				ok = _gioca_carta(int(rq["lato"]), str(d.get("v", "")))
+			elif rq["k"] == "reazione":
+				ok = _reazione(str(d.get("v", "")))
+			else:
+				ok = rq["k"] in ["citta", "assalto", "continua", "resta", "contro", "aggira", "guardia", "carica", "tattica"] and _scelta(rq, str(d.get("v", "")))
 	if ok:
 		s["azioni"] += 1
 	return ok
@@ -1439,6 +1487,13 @@ func raggiungibili(capo: String, porta: Dictionary, fm_max := 3) -> Dictionary:
 			if not entrabile(n, porta):
 				continue
 			var c := Mappa.costo(h, n)
+			# carta dei pontieri: il fiume di quell'esagono non costa per questo turno
+			if carte_attive() and Mappa.fiume_tra(h, n):
+				for hp in [h, n]:
+					var pt = s["carte"]["ponti"].get(hp, [])
+					if pt is Array and pt.size() == 2 and int(pt[0]) == int(s["turno"]) and int(pt[1]) == int(s["lato"]):
+						c = maxi(1, c - Dati.COSTO_FIUME)
+						break
 			if nemico_fuori(n, l):
 				# travolgimento (overrun)
 				if not puo_travolgere:
@@ -1548,6 +1603,12 @@ func _muovi(d: Dictionary) -> bool:
 		if Mappa.area(da) in [1, 4]: t += 1
 		if inverno(): t += 1
 		var r := Dati.marcia(t, fm)
+		# carta del trasporto su carri: meno uno al dado se migliora il risultato
+		if carte_attive() and "C5" in mano(l):
+			var r2 := Dati.marcia(t - 1, fm)
+			if (int(r2[0]) > int(r[0]) or (r[1] and not r2[1])) and _auto_carta(l, "C5"):
+				r = r2
+				t -= 1
 		var ottenuti: int = r[0]
 		eventi.append({"k": "dado", "titolo": "Marcia forzata +%d" % fm, "dadi": [tiro]})
 		nota = " (marcia forzata: dado %d, +%d%s)" % [tiro, ottenuti, "*" if r[1] else ""]
@@ -1941,13 +2002,25 @@ func _avanza_battaglie() -> void:
 					b["pre"] = true
 				_prepara_round(b)
 			"decidi":
-				if not _prossima_decisione(b, i).is_empty():
+				if not _prossima_decisione(b, i, true).is_empty():
 					return
 				if b["tipo"] == "campo" and opzione("matrice"):
 					_log("Matrice tattica a %s: %s, %s." % [Mappa.nome(b["dif"]), Dati.LATI_BREVI[int(b["la"])] + " " + TATTICHE[b["tat"][0]], Dati.LATI_BREVI[int(b["ld"])] + " " + TATTICHE[b["tat"][1]]])
 				cb["passo"] = "risolvi"
 			"risolvi":
 				_risolvi_round(b)
+				cb["passo"] = "applica"
+				if not b["pend"]["nc"] and _apri_finestra("dadi", _lati_battaglia(b), "batt"):
+					return
+			"applica":
+				_applica_round(b)
+				cb["passo"] = "post"
+				if _battaglia_viva(b) and _apri_finestra("dopo", _lati_battaglia(b), "batt"):
+					return
+			"post":
+				if b["fine"]:
+					cb["passo"] = "prossima"
+					continue
 				# regola Y: chi ha morale zero perde prigionieri invece di ritirarsi o arrendersi
 				if opzione("demoralizzato") and _battaglia_viva(b):
 					for lx in [int(b["la"]), int(b["ld"])]:
@@ -2047,6 +2120,11 @@ func _cavalleria(b: Dictionary, lato: int) -> int:
 
 ## Prima di ogni round: le decisioni facoltative (aggiramento, Guardia, carica, matrice tattica)
 func _prepara_round(b: Dictionary) -> void:
+	b["cm"] = [0, 0]
+	b["extra"] = [0, 0]
+	b["coraz"] = [false, false]
+	b["no_dem"] = [false, false]
+	b["ridotta"] = false
 	b["guardia"] = [false, false]
 	b["carica"] = [false, false]
 	b["tat"] = ["", ""]
@@ -2061,11 +2139,12 @@ func _prepara_round(b: Dictionary) -> void:
 		coda.append(["carica", lx])
 	coda.append(["tattica", int(b["la"])])
 	coda.append(["tattica", int(b["ld"])])
+	coda.append(["carte", -1])
 	b["coda"] = coda
 	s["cb"]["passo"] = "decidi"
 
 ## La prossima decisione da chiedere prima del round (salta quelle che non si applicano)
-func _prossima_decisione(b: Dictionary, bi: int) -> Dictionary:
+func _prossima_decisione(b: Dictionary, bi: int, avanza := false) -> Dictionary:
 	var coda: Array = b.get("coda", [])
 	while not coda.is_empty():
 		var k: String = coda[0][0]
@@ -2090,6 +2169,14 @@ func _prossima_decisione(b: Dictionary, bi: int) -> Dictionary:
 				if opzione("matrice") and b["tipo"] == "campo":
 					rq["opzioni"] = ORDINE_TATTICHE.duplicate()
 					return rq
+			"carte":
+				# carte evento d'inizio round: si apre la finestra (chi attacca per primo)
+				if not avanza:
+					return {}
+				coda.pop_front()
+				if _apri_finestra("round", _lati_battaglia(b), "batt"):
+					return {"k": "finestra"}
+				continue
 		coda.pop_front()
 	return {}
 
@@ -2246,6 +2333,9 @@ func _morale_lato(b: Dictionary, lato: int) -> int:
 	# regola W: la Guardia impegnata dà morale 3 per il round (zero se la forza è demoralizzata)
 	if b.get("guardia", [false, false])[0 if lato == int(b["la"]) else 1]:
 		return 0 if dem > 0 else 3
+	# carta della breccia nelle mura: i difensori di una città assaltata perdono un punto di morale
+	if b.get("breccia", false) and dentro:
+		dem += 1
 	return maxi(0, best - dem)
 
 ## Morale di un'unità con le regole dello scenario (morale ridotto, patriottismo russo, capi che
@@ -2379,34 +2469,84 @@ func _risolvi_round(b: Dictionary) -> void:
 		elif int(mt) != 0:
 			mods.append(["Tattica", int(mt)])
 			mod += int(mt)
+	# carte evento giocate all'inizio del round
+	var cm: Array = b.get("cm", [0, 0])
+	var cs: Array = b.get("cm_sempre", [0, 0])
+	var mc := int(cm[gi]) + int(cs[gi]) - int(cm[1 - gi]) - int(cs[1 - gi])
+	if mc != 0:
+		mods.append(["Carte", mc])
+		mod += mc
 	var d1 := dado()
 	var d2 := dado()
 	var tiro := clampi(d1 + d2 + mod, 2, 12)
-	var rg := "0"
-	var rp := "0"
 	if nc:
 		mods.append(["Tattica: nessun combattimento", 0])
-	elif rap == "4:1":
-		rp = "D3"
-	else:
-		var r: Array = Dati.crt(rap, tiro)
-		rg = r[0]
-		rp = r[1]
-	if nc:
 		d1 = 0
 		d2 = 0
 		tiro = 0
+	b["pend"] = {"grande": grande, "piccola": piccola, "gi": gi, "rap": rap, "cg": cg, "cp": cp, "fa": fa, "fd": fd,
+		"mods": mods, "mod": mod, "d1": d1, "d2": d2, "tiro": tiro, "nc": nc}
+
+## Risultato della tabella per il round in sospeso (con le carte giocate dopo i dadi):
+## [risultato della forza grande, risultato della piccola]
+func esito_round(b: Dictionary) -> Array:
+	var p: Dictionary = b["pend"]
+	var rg := "0"
+	var rp := "0"
+	if p["nc"]:
+		return [rg, rp]
+	if p["rap"] == "4:1":
+		rp = "D3"
+	else:
+		var r: Array = Dati.crt(p["rap"], int(p["tiro"]))
+		rg = r[0]
+		rp = r[1]
+	# la grande ridotta: il difensore attenua il suo risultato
+	if b.get("ridotta", false):
+		var ix_d := 0 if int(b["ld"]) == int(p["grande"]) else 1
+		var res := [rg, rp]
+		res[ix_d] = {"D1": "1", "D2": "D1", "D3": "D2"}.get(res[ix_d], res[ix_d])
+		rg = res[0]
+		rp = res[1]
+	return [rg, rp]
+
+func _applica_round(b: Dictionary) -> void:
+	var p: Dictionary = b["pend"]
+	var la := int(b["la"])
+	var ld := int(b["ld"])
+	var grande := int(p["grande"])
+	var piccola := int(p["piccola"])
+	var cg: String = p["cg"] if s["capi"].has(p["cg"]) else ""
+	var cp: String = p["cp"] if s["capi"].has(p["cp"]) else ""
+	var es := esito_round(b)
+	var rg: String = es[0]
+	var rp: String = es[1]
 	var piccola_sp := _sp_battaglia(b, piccola)
 	var pp := Dati.perdita(rp, piccola_sp)
-	if rap == "4:1" and not nc:
+	if p["rap"] == "4:1" and not p["nc"]:
 		rg = "1" if pp > 1 else "0"
 	var pg := Dati.perdita(rg, piccola_sp)
+	# carte: granatieri in massa (un punto forza in più), corazzieri senza successo (una cavalleria in più)
+	var extra: Array = b.get("extra", [0, 0])
+	var gi := int(p["gi"])
+	pg += int(extra[gi])
+	pp += int(extra[1 - gi])
+	var coraz: Array = b.get("coraz", [false, false])
+	for k in [gi, 1 - gi]:
+		if coraz[k]:
+			var avv_ris: String = rp if k == gi else rg
+			if not avv_ris.begins_with("D"):
+				var lx := la if k == 0 else ld
+				var cav := _impegnate(b, lx).filter(func(id): return Dati.e_cavalleria(s["unita"][id]["t"]))
+				if not cav.is_empty():
+					_elimina_sp(cav, 1, false, "")
+					_log("La carica dei corazzieri non sfonda: %s perdono un punto forza di cavalleria." % Dati.LATI_BREVI[lx])
 	# Egitto: i Francesi possono evitare una perdita con un dado più il valore del capo
 	if scen.get("perdite_fr_dado", false):
 		for lx in [grande, piccola]:
-			var p := pg if lx == grande else pp
+			var pl := pg if lx == grande else pp
 			var cx := cg if lx == grande else cp
-			if p > 0 and _naz_battaglia(b, lx) == "FR":
+			if pl > 0 and _naz_battaglia(b, lx) == "FR":
 				var td := dado() + (int(s["capi"][cx]["v"]) if cx != "" else 0)
 				if td >= 5:
 					if lx == grande: pg -= 1
@@ -2423,8 +2563,13 @@ func _risolvi_round(b: Dictionary) -> void:
 							_log("[b]La Guardia è respinta: il morale francese crolla[/b] (morale 1 per il resto della partita).")
 	_elimina_battaglia(b, grande, pg, rg.begins_with("D"), cg)
 	_elimina_battaglia(b, piccola, pp, rp.begins_with("D"), cp)
-	b["dem"][0 if grande == la else 1] = int(b["dem"][0 if grande == la else 1]) + Dati.demoralizzazione(rg)
-	b["dem"][0 if piccola == la else 1] = int(b["dem"][0 if piccola == la else 1]) + Dati.demoralizzazione(rp)
+	# cornamuse e tamburi: le perdite restano, il morale no
+	var no_dem: Array = b.get("no_dem", [false, false])
+	var ig := 0 if grande == la else 1
+	if not no_dem[ig]:
+		b["dem"][ig] = int(b["dem"][ig]) + Dati.demoralizzazione(rg)
+	if not no_dem[1 - ig]:
+		b["dem"][1 - ig] = int(b["dem"][1 - ig]) + Dati.demoralizzazione(rp)
 	for lato in [la, ld]:
 		var c := _capo_battaglia(b, lato)
 		for id in s["capi"]:
@@ -2433,12 +2578,14 @@ func _risolvi_round(b: Dictionary) -> void:
 		if c != "":
 			s["coinvolti_capi"][c] = true
 	var rep := {"r": s["cb"]["r"], "att": b["att"], "dif": b["dif"], "tipo": b["tipo"],
-		"forze": [fa, fd], "grande": grande, "rapporto": rap, "capi": [s["capi"][cg]["nome"] if cg != "" else "—", s["capi"][cp]["nome"] if cp != "" else "—"],
-		"mods": mods, "mod": mod, "dadi": [d1, d2], "tiro": tiro, "ris": [rg, rp], "perdite": [pg, pp]}
+		"forze": [p["fa"], p["fd"]], "grande": grande, "rapporto": p["rap"], "capi": [s["capi"][cg]["nome"] if cg != "" else "—", s["capi"][cp]["nome"] if cp != "" else "—"],
+		"mods": p["mods"], "mod": p["mod"], "dadi": [p["d1"], p["d2"]], "tiro": p["tiro"], "ris": [rg, rp], "perdite": [pg, pp]}
 	b["rapporti"].append(rep)
+	b["ultimo"] = {"ris": [rg, rp], "grande": grande}
+	b.erase("pend")
 	eventi.append({"k": "battaglia", "rep": rep})
 	_log("[b]Battaglia di %s[/b] (round %d%s): %d contro %d, %s; dadi %d+%d %+d = %d » %s %s / %s %s (perdite %d e %d)" % [
-		Mappa.nome(b["dif"]), int(s["cb"]["r"]), ", assalto" if b["tipo"] == "assalto" else "", fa, fd, rap, d1, d2, mod, tiro,
+		Mappa.nome(b["dif"]), int(s["cb"]["r"]), ", assalto" if b["tipo"] == "assalto" else "", int(p["fa"]), int(p["fd"]), p["rap"], int(p["d1"]), int(p["d2"]), int(p["mod"]), int(p["tiro"]),
 		LATI_BREVI_(grande), rg, LATI_BREVI_(piccola), rp, pg, pp])
 	_compatta_battaglia(b)
 	for lato in [la, ld]:
@@ -2639,6 +2786,12 @@ func _rinforzi_battaglia(b: Dictionary) -> void:
 				best = maxi(best, int(s["capi"][id]["v"]))
 			var t := dado()
 			var n_sp := sp_in(h, lato, true)
+			# carte: marciare al rombo del cannone (+2 al capo), ponti rotti (il nemico blocca i rinforzi)
+			if t + best < 5 and t + best + 2 >= 5 and best > 0 and carte_attive() and _auto_carta(lato, "C6", b):
+				best += 2
+			if t + best >= 5 and n_sp >= 3 and carte_attive() and _auto_carta(1 - lato, "C9", b):
+				_log("I rinforzi da %s non arrivano: ponti rotti e strade bloccate." % Mappa.nome(h))
+				continue
 			if t + best >= 5:
 				fresche += n_sp
 				# entra in battaglia: deve essere adiacente al nemico impegnato
@@ -2691,6 +2844,12 @@ func _ritirata_lato(b: Dictionary, lato: int, volontaria: bool) -> void:
 		if cav_n > cav:
 			_elimina_sp(ids, 1, false, "")
 			ids = unita_in(h, lato, true)
+		# carta: inseguimento della cavalleria leggera
+		if not ids.is_empty() and _auto_carta(nemico, "Q8"):
+			_elimina_sp(ids, 1, false, "")
+			ids = unita_in(h, lato, true)
+			if ids.is_empty():
+				continue
 		var dest := _dest_ritirata(h, lato)
 		if dest == "":
 			# chiuso: le unità entrano in città se possono, altrimenti sono eliminate
@@ -4085,3 +4244,462 @@ func _dove_rimpiazzo(chi: String, r: Dictionary, u: Array, per_hex: Dictionary) 
 		if int(per_hex.get(h, 0)) < 2:
 			return h
 	return ""
+
+# =============================================================================================
+# Carte evento comuni (regola facoltativa "carte"): cuori, quadri e due jolly
+
+func carte_attive() -> bool:
+	return opzione("carte") and s.has("carte")
+
+## Numero casuale 0..n-1 con il generatore dei dadi (riproducibile anche online)
+func _caso(n: int) -> int:
+	s["rs"] = (int(s["rs"]) * 1103515245 + 12345) % 2147483648
+	return int(s["rs"] / 65536) % maxi(1, n)
+
+func _prepara_carte() -> void:
+	var mazzo := []
+	for id in Carte.DATI:
+		mazzo.append(id)
+	s["carte"] = {"mazzo": [], "scarti": [], "mano": [[], []], "bloccate": {}, "viveri": {}, "ponti": {}, "leve": [], "incap": {}}
+	while not mazzo.is_empty():
+		s["carte"]["mazzo"].append(mazzo.pop_at(_caso(mazzo.size())))
+
+func mano(l: int) -> Array:
+	if not carte_attive() or l < 0 or l > 1:
+		return []
+	return s["carte"]["mano"][l]
+
+## Limite di carte in mano del lato: quello della potenza maggiore che può tenerne di più
+func limite_mano(l: int) -> int:
+	var best := 1
+	for id in s["unita"]:
+		var u: Dictionary = s["unita"][id]
+		if lato_unita(u) == l and u["s"] == "":
+			best = maxi(best, int(Carte.LIMITE.get(u["n"], 2)))
+	return best
+
+func _metti_nel_mazzo(id: String) -> void:
+	var m: Array = s["carte"]["mazzo"]
+	m.insert(_caso(m.size() + 1), id)
+
+## Fase delle alleanze: un dado non superiore al miglior capo in gioco fa pescare una carta
+func _pesca_carta(l: int) -> void:
+	var best := 0
+	for id in s["capi"]:
+		var c: Dictionary = s["capi"][id]
+		if c["h"] != "" and not c["morto"] and lato_capo(c) == l:
+			best = maxi(best, int(c["v"]))
+	var t := dado()
+	if t > best:
+		return
+	if mano(l).size() >= limite_mano(l):
+		_log("%s: mano piena, nessuna carta (dado %d)." % [nome_lato(l), t])
+		return
+	var mz: Array = s["carte"]["mazzo"]
+	if mz.is_empty():
+		var sc: Array = s["carte"]["scarti"]
+		while not sc.is_empty():
+			mz.append(sc.pop_at(_caso(sc.size())))
+		_log("Il mazzo delle carte evento viene rimescolato.")
+	if mz.is_empty():
+		return
+	s["carte"]["mano"][l].append(mz.pop_front())
+	_log("%s pesca una carta evento (dado %d)." % [nome_lato(l), t])
+	eventi.append({"k": "carta_pescata", "lato": l})
+
+func _bloccata(id: String) -> bool:
+	return int(s["carte"]["bloccate"].get(id, -1)) == int(s["turno"])
+
+func _scarta(l: int, id: String) -> void:
+	s["carte"]["mano"][l].erase(id)
+	if id.begins_with("J"):
+		_metti_nel_mazzo(id)
+	else:
+		s["carte"]["scarti"].append(id)
+
+## Carta giocata dal gioco da solo (trasporto su carri, rombo del cannone, ponti rotti, inseguimento)
+func _auto_carta(l: int, id: String, b = null) -> bool:
+	if not carte_attive() or not id in mano(l) or _bloccata(id):
+		return false
+	if b is Dictionary and not _puo_carta_batt(b, l):
+		return false
+	_scarta(l, id)
+	if b is Dictionary:
+		var ix := 0 if l == int(b["la"]) else 1
+		b["ncarte"][ix] = int(b["ncarte"][ix]) + 1
+	_log("[b]%s[/b] gioca %s." % [nome_lato(l), Carte.titolo(id)])
+	eventi.append({"k": "annuncio", "t": "%s: %s" % [Dati.LATI_BREVI[l], Carte.DATI[id]["nome"]]})
+	return true
+
+# ---------- finestre
+
+func _lati_battaglia(b: Dictionary) -> Array:
+	return [int(b["la"]), int(b["ld"])]
+
+## Apre una finestra per giocare carte; false se nessuno ha carte giocabili (si prosegue subito)
+func _apri_finestra(w: String, lati: Array, cont: String) -> bool:
+	if not carte_attive():
+		return false
+	var chi := []
+	for l in lati:
+		if not opzioni_carte(int(l), w).is_empty():
+			chi.append(int(l))
+	if chi.is_empty():
+		return false
+	s["finestra"] = {"w": w, "lati": chi, "cont": cont}
+	return true
+
+## Dopo ogni scelta: salta chi non ha più carte giocabili; a finestra chiusa riprende il gioco
+func _avanza_finestra() -> void:
+	while s.has("finestra") and not s.has("reazione"):
+		var f: Dictionary = s["finestra"]
+		if f["lati"].is_empty():
+			s.erase("finestra")
+			_continua(str(f["cont"]))
+			return
+		if opzioni_carte(int(f["lati"][0]), str(f["w"])).is_empty():
+			f["lati"].pop_front()
+		else:
+			return
+
+func _continua(cont: String) -> void:
+	match cont:
+		"batt":
+			_avanza_battaglie()
+		"seg":
+			_inizia_segmento_dopo_logoramento()
+
+func _batt_corrente():
+	if s["fase"] != "battaglie" or s["cb"].is_empty() or int(s["cb"]["i"]) >= s["batt"].size():
+		return null
+	return s["batt"][int(s["cb"]["i"])]
+
+## Si può giocare un'altra carta in questa battaglia? Tante carte quanto vale il capo; con un capo
+## da zero si può tentare una volta (riesce se un dado supera il valore del capo nemico)
+func _puo_carta_batt(b: Dictionary, l: int) -> bool:
+	var ix := 0 if l == int(b["la"]) else 1
+	if not b.has("ncarte"):
+		b["ncarte"] = [0, 0]
+	if b.get("inganno", false) and l == int(b["ld"]):
+		return false
+	var c := _capo_battaglia(b, l)
+	var v := int(s["capi"][c]["v"]) if c != "" else 0
+	return int(b["ncarte"][ix]) < maxi(1, v)
+
+func opzioni_carte(l: int, w: String) -> Array:
+	var out := []
+	if not carte_attive() or l < 0 or l > 1:
+		return out
+	var b = _batt_corrente() if w in ["round", "dadi", "dopo"] else null
+	if w in ["round", "dadi", "dopo"]:
+		if b == null or not _puo_carta_batt(b, l):
+			return out
+	for id in mano(l):
+		if _bloccata(id) or Carte.DATI[id]["f"] != w:
+			continue
+		match id:
+			"C3":
+				var hs := esagoni_di(l).filter(func(h): return sp_in(h, l) >= 3)
+				hs.sort_custom(func(a, c): return sp_in(a, l) > sp_in(c, l))
+				for h in hs.slice(0, 6):
+					out.append("C3@" + h)
+			"C4":
+				out.append("C4")
+			"C1":
+				for h in s["assedi"]:
+					if int(s["assedi"][h]["lato"]) == l and int(s["assedi"][h]["l"]) < 5:
+						out.append("C1@" + h)
+			"C7":
+				var hs := esagoni_di(l).filter(func(h):
+					for v in Mappa.vicini(h):
+						if str(v[1]).contains("f"):
+							return true
+					return false)
+				hs.sort_custom(func(a, c): return sp_in(a, l) > sp_in(c, l))
+				for h in hs.slice(0, 6):
+					out.append("C7@" + h)
+			"C8":
+				var bers := {}
+				for h in esagoni_di(l):
+					if sp_in(h, l, true) == 0:
+						continue
+					for v in Mappa.vicini(h):
+						if sp_in(v[0], 1 - l, true) >= 3:
+							bers[v[0]] = true
+				for h in bers:
+					out.append("C8@" + h)
+			"Q12", "Q13":
+				for n in _nazioni_con_capitale(l):
+					out.append("%s@%s" % [id, n])
+			"C2":
+				if b["tipo"] == "assalto" and l == int(b["la"]) and not b.get("breccia", false):
+					out.append(id)
+			"C13":
+				var c := _capo_battaglia(b, l)
+				if int(s["cb"]["r"]) == 1 and c != "" and int(s["capi"][c]["v"]) >= 2 and _sp_battaglia(b, l) >= 5 and not b.get("dodici", [false, false])[0 if l == int(b["la"]) else 1]:
+					out.append(id)
+			"Q2":
+				if l == int(b["ld"]) and int(b.get("cm_sempre", [0, 0])[1]) == 0:
+					out.append(id)
+			"Q3":
+				if l != int(s["lato"]):
+					out.append(id)
+			"Q4":
+				out.append(id)
+			"Q5":
+				if _cavalleria(b, l) > 0 and not b["carica"][0 if l == int(b["la"]) else 1]:
+					out.append(id)
+			"Q6":
+				if int(s["cb"]["r"]) == 1 and l == int(b["la"]) and not b.get("inganno", false):
+					out.append(id)
+			"Q11":
+				var c := _capo_battaglia(b, 1 - l)
+				if c != "" and int(s["capi"][c]["v"]) > 0:
+					out.append("Q11@" + c)
+			"Q10":
+				out.append("Q10+")
+				out.append("Q10-")
+			"C10":
+				if l == int(b["ld"]) and _ris_mio(b, l).begins_with("D"):
+					out.append(id)
+			"Q9":
+				var ix := 0 if l == int(b["la"]) else 1
+				if _ris_mio(b, l).begins_with("D") and not b["no_dem"][ix]:
+					out.append(id)
+			"C11", "C12":
+				if int(b["dem"][0 if l == int(b["la"]) else 1]) > 0:
+					out.append(id)
+			"Q7":
+				var ult: Dictionary = b.get("ultimo", {})
+				if b["tipo"] == "campo" and not ult.is_empty():
+					var suo: String = ult["ris"][0] if int(ult["grande"]) != l else ult["ris"][1]
+					if suo.begins_with("D") and _sp_battaglia(b, 1 - l) > 0:
+						out.append(id)
+	return out
+
+## Risultato del round in sospeso per il lato l (finestra dei dadi)
+func _ris_mio(b: Dictionary, l: int) -> String:
+	if not b.has("pend") or b["pend"]["nc"]:
+		return "0"
+	var es := esito_round(b)
+	return es[0] if int(b["pend"]["grande"]) == l else es[1]
+
+func _nazioni_con_capitale(l: int) -> Array:
+	var naz := {}
+	for id in s["unita"]:
+		var u: Dictionary = s["unita"][id]
+		if lato_unita(u) == l and u["s"] == "":
+			naz[u["n"]] = true
+	var out := []
+	for n in naz:
+		for nome in Carte.CAPITALI.get(n, []):
+			var h := Mappa.hex(nome)
+			if h != "" and controllore(h) == l and sp_in(h, 1 - l) == 0:
+				out.append(n)
+				break
+	return out
+
+func _capitale_di(n: String, l: int) -> String:
+	for nome in Carte.CAPITALI.get(n, []):
+		var h := Mappa.hex(nome)
+		if h != "" and controllore(h) == l and sp_in(h, 1 - l) == 0:
+			return h
+	return ""
+
+# ---------- giocare una carta
+
+func _gioca_carta(l: int, opz: String) -> bool:
+	var f: Dictionary = s.get("finestra", {})
+	if f.is_empty() or f["lati"].is_empty() or int(f["lati"][0]) != l:
+		return false
+	if opz == "passo":
+		f["lati"].pop_front()
+		_avanza_finestra()
+		return true
+	if not opz in opzioni_carte(l, str(f["w"])):
+		return false
+	var id: String = opz.split("@")[0]
+	if id.begins_with("Q10"):
+		id = "Q10"
+	var b = _batt_corrente() if str(f["w"]) in ["round", "dadi", "dopo"] else null
+	s["carte"]["mano"][l].erase(id)
+	if b != null:
+		var ix := 0 if l == int(b["la"]) else 1
+		b["ncarte"][ix] = int(b["ncarte"][ix]) + 1
+		var c := _capo_battaglia(b, l)
+		if c == "" or int(s["capi"][c]["v"]) == 0:
+			var avv := _capo_battaglia(b, 1 - l)
+			var t := dado()
+			if t <= (int(s["capi"][avv]["v"]) if avv != "" else 0):
+				s["carte"]["scarti"].append(id)
+				_log("%s tenta di giocare %s, ma senza un capo valido la carta va persa (dado %d)." % [nome_lato(l), Carte.titolo(id), t])
+				_avanza_finestra()
+				return true
+	_log("[b]%s[/b] gioca %s." % [nome_lato(l), Carte.titolo(opz)])
+	eventi.append({"k": "annuncio", "t": "%s: %s" % [Dati.LATI_BREVI[l], Carte.DATI[id]["nome"]]})
+	# l'avversario può rispondere con un jolly o (contro le carte sul tiro) con i volteggiatori
+	var rx := []
+	for c2 in mano(1 - l):
+		if _bloccata(c2):
+			continue
+		if c2.begins_with("J") or (c2 == "Q1" and id in Carte.SUL_TIRO):
+			if b != null and not _puo_carta_batt(b, 1 - l):
+				continue
+			if not c2 in rx:
+				rx.append(c2)
+	if not rx.is_empty():
+		s["reazione"] = {"lato": 1 - l, "da": l, "opz": opz, "carta": id, "opzioni": rx + ["lascia"]}
+		return true
+	_effetto_carta(l, opz, b)
+	_avanza_finestra()
+	return true
+
+func _reazione(v: String) -> bool:
+	var r: Dictionary = s.get("reazione", {})
+	if r.is_empty() or not v in r["opzioni"]:
+		return false
+	s.erase("reazione")
+	var l := int(r["da"])
+	var id: String = r["carta"]
+	var b = _batt_corrente() if s.has("finestra") and str(s["finestra"]["w"]) in ["round", "dadi", "dopo"] else null
+	if v == "lascia":
+		_effetto_carta(l, str(r["opz"]), b)
+	elif v == "Q1":
+		_scarta(1 - l, "Q1")
+		s["carte"]["mano"][l].append(id)
+		s["carte"]["bloccate"][id] = int(s["turno"])
+		_log("[b]%s[/b] risponde con i Volteggiatori: %s torna in mano e non si può usare in questo turno." % [nome_lato(1 - l), Carte.DATI[id]["nome"]])
+	else:
+		s["carte"]["mano"][1 - l].erase(v)
+		_metti_nel_mazzo(v)
+		_metti_nel_mazzo(id)
+		_log("[b]%s[/b] annulla la carta con un jolly: entrambe tornano nel mazzo." % nome_lato(1 - l))
+	if b != null and v != "lascia":
+		var ix := 0 if (1 - l) == int(b["la"]) else 1
+		b["ncarte"][ix] = int(b["ncarte"][ix]) + 1
+	eventi.append({"k": "annuncio", "t": "Carta annullata" if v != "lascia" else Carte.DATI[id]["nome"]})
+	_avanza_finestra()
+	return true
+
+func _effetto_carta(l: int, opz: String, b) -> void:
+	if opz.begins_with("Q10"):
+		s["carte"]["scarti"].append("Q10")
+		var p: Dictionary = b["pend"]
+		var dv := 1 if opz.ends_with("+") else -1
+		p["tiro"] = clampi(int(p["tiro"]) + dv, 2, 12)
+		p["mods"].append(["Fortuna", dv])
+		p["mod"] = int(p["mod"]) + dv
+		return
+	var parti := opz.split("@")
+	var id: String = parti[0]
+	var arg: String = parti[1] if parti.size() > 1 else ""
+	if id.begins_with("J"):
+		_metti_nel_mazzo(id)
+	else:
+		s["carte"]["scarti"].append(id)
+	var ix := (0 if l == int(b["la"]) else 1) if b != null else 0
+	match id:
+		"C1":
+			s["assedi"][arg]["l"] = mini(5, int(s["assedi"][arg]["l"]) + 2)
+			_log("Assedio di %s: livello %d." % [Mappa.nome(arg), int(s["assedi"][arg]["l"])])
+		"C3":
+			s["carte"]["viveri"][arg] = [int(s["turno"]), l]
+		"C4":
+			s["carte"]["magazzini"] = l
+		"C7":
+			s["carte"]["ponti"][arg] = [int(s["turno"]), l]
+		"C8":
+			var mio := 0
+			var suo := 0
+			for v in Mappa.vicini(arg):
+				for id2 in unita_in(v[0], l, true):
+					if Dati.e_cavalleria(s["unita"][id2]["t"]):
+						mio += int(s["unita"][id2]["sp"])
+			for id2 in unita_in(arg, 1 - l, true):
+				if Dati.e_cavalleria(s["unita"][id2]["t"]):
+					suo += int(s["unita"][id2]["sp"])
+			var t := dado()
+			var p := _logora_esagono(arg, 1 - l, t + (1 if suo < mio else 0))
+			_log("Incursione di cavalleria a %s (dado %d%s): %d punti forza persi." % [Mappa.nome(arg), t, ", +1" if suo < mio else "", p])
+			_compatta()
+		"Q12", "Q13":
+			var h := _capitale_di(arg, l)
+			if h != "":
+				var cav := id == "Q12"
+				_nuova_unita(arg, "", "C" if cav else "I", 1 if cav else 2, h)
+				s["carte"]["leve"].append({"lato": l, "naz": arg, "t": "C" if cav else "I", "sp": 1 if cav else 2, "turni": 1 if cav else 2})
+				_log("Nuove leve a %s: %s." % [Mappa.nome(h), "1 PF di cavalleria" if cav else "2 PF di fanteria"])
+		"C2":
+			b["breccia"] = true
+		"C13":
+			var t := dado()
+			var mo := _morale_lato(b, 1 - l)
+			if t >= mo + 2:
+				b["dem"][1 - ix] = int(b["dem"][1 - ix]) + 1
+				_log("I cannoni da dodici scuotono il nemico (dado %d contro morale %d): morale meno uno." % [t, mo])
+			else:
+				_log("I cannoni da dodici non bastano (dado %d contro morale %d)." % [t, mo])
+			if not b.has("dodici"):
+				b["dodici"] = [false, false]
+			b["dodici"][ix] = true
+		"Q2":
+			if not b.has("cm_sempre"):
+				b["cm_sempre"] = [0, 0]
+			b["cm_sempre"][ix] = int(b["cm_sempre"][ix]) + 1
+		"Q3":
+			b["cm"][ix] = int(b["cm"][ix]) + 1
+		"Q4":
+			b["cm"][ix] = int(b["cm"][ix]) + 2
+			b["extra"][ix] = int(b["extra"][ix]) + 1
+		"Q5":
+			b["cm"][ix] = int(b["cm"][ix]) + 2
+			b["coraz"][ix] = true
+		"Q6":
+			b["inganno"] = true
+		"Q11":
+			s["carte"]["incap"][arg] = [int(s["capi"][arg]["v"]), int(s["turno"])]
+			s["capi"][arg]["v"] = 0
+			_log("%s è fuori combattimento per il resto del turno." % s["capi"][arg]["nome"])
+		"C10":
+			b["ridotta"] = true
+		"Q9":
+			b["no_dem"][ix] = true
+		"C11":
+			b["dem"][ix] = maxi(0, int(b["dem"][ix]) - 1)
+		"C12":
+			b["dem"][ix] = 0
+		"Q7":
+			var c := _capo_battaglia(b, l)
+			var n := int(s["capi"][c]["v"]) if c != "" else 0
+			var opp := 1 - l
+			if n > 0:
+				_elimina_battaglia(b, opp, n, false, _capo_battaglia(b, opp))
+				_compatta_battaglia(b)
+			_log("Si salvi chi può! %s perdono %d PF e si ritirano." % [Dati.LATI_BREVI[opp], n])
+			if _sp_battaglia(b, opp) > 0:
+				_ritirata_lato(b, opp, false)
+			_dopo_ritirata(b)
+			b["fine"] = true
+
+## Inizio di ogni segmento: tornano i capi fuori combattimento, arrivano le nuove leve
+func _carte_inizio_segmento() -> void:
+	if not carte_attive():
+		return
+	var inc: Dictionary = s["carte"]["incap"]
+	for id in inc.keys():
+		if int(inc[id][1]) != int(s["turno"]) and s["capi"].has(id):
+			s["capi"][id]["v"] = int(inc[id][0])
+			inc.erase(id)
+
+func _carte_leve(l: int) -> void:
+	if not carte_attive():
+		return
+	for lv in s["carte"]["leve"]:
+		if int(lv["lato"]) != l or int(lv["turni"]) <= 0:
+			continue
+		lv["turni"] = int(lv["turni"]) - 1
+		var h := _capitale_di(str(lv["naz"]), l)
+		if h != "":
+			_nuova_unita(str(lv["naz"]), "", str(lv["t"]), int(lv["sp"]), h)
+			_log("Nuove leve a %s." % Mappa.nome(h))
+	s["carte"]["leve"] = s["carte"]["leve"].filter(func(lv): return int(lv["turni"]) > 0)

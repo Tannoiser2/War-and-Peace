@@ -27,6 +27,8 @@ func _run():
 		main.opz_regole = {"matrice": true, "carica": true, "guardia": true, "aggiramento": true}
 	if modo == "nebbia":
 		main.opz_regole = {"nebbia": true}
+	if modo == "carte":
+		main.opz_regole = {"carte": true}
 	main.scelta_scen = OS.get_environment("WP_SCEN") if OS.get_environment("WP_SCEN") != "" else "1805"
 	main._avvia_locale()
 	await shot("partita")
@@ -61,6 +63,26 @@ func _run():
 		main._scegli_capo(nap)
 		main._centra_su(main.sel_hex, 9.0)
 		await shot("movimento")
+		quit(); return
+	if modo == "carte":
+		main.velocita = 50.0
+		var n2 := 0
+		var foto := 0
+		while n2 < 3000 and not main.m.finita() and foto < 3:
+			await process_frame
+			main.m.s["carte"]["mano"][0] = ["Q4", "Q10", "C11", "Q12"] if main.m.mano(0).size() < 2 else main.m.mano(0)
+			if main.popup_aperto:
+				main._chiudi_popup()
+				main.coda_rapporti.clear()
+			var r: Dictionary = main.m.richiesta()
+			if r.is_empty() or main._chi(int(r["lato"])) != "io":
+				continue
+			if r["k"] in ["carta", "reazione"] or (r["k"] == "movimento" and foto == 0):
+				main._aggiorna_tutto()
+				await shot("carte_%d" % foto)
+				foto += 1
+			await main._invia(main.ia[int(r["lato"])].decidi(r))
+			n2 += 1
 		quit(); return
 	if modo == "tattica":
 		# gioca con l'IA fino alla prima scelta di tattica del giocatore

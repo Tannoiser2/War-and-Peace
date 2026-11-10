@@ -68,6 +68,12 @@ func decidi(rq: Dictionary) -> Dictionary:
 			return {"a": "scelta", "v": _carica(rq)}
 		"tattica":
 			return {"a": "scelta", "v": _tattica(rq)}
+		"carta":
+			return {"a": "scelta", "v": _carta(rq)}
+		"reazione":
+			# si annulla sempre una carta nemica (prima i volteggiatori, che costano meno del jolly)
+			var o: Array = rq["opzioni"]
+			return {"a": "scelta", "v": "Q1" if "Q1" in o else o[0]}
 		"navale":
 			return _navale(rq)
 	return {"a": "fine"}
@@ -999,6 +1005,88 @@ func _tattica(rq: Dictionary) -> String:
 		if x < 0:
 			return p[0]
 	return "refuse"
+
+## Carte evento: quale giocare nella finestra aperta ("passo" = nessuna)
+func _carta(rq: Dictionary) -> String:
+	var lato: int = rq["lato"]
+	var opz: Array = rq["opzioni"]
+	var b = m._batt_corrente()
+	var meglio := "passo"
+	var punti := 0.0
+	for o in opz:
+		if o == "passo":
+			continue
+		var p := _valore_carta(str(o), lato, b)
+		if p > punti:
+			punti = p
+			meglio = o
+	return meglio
+
+func _valore_carta(o: String, lato: int, b) -> float:
+	var parti := o.split("@")
+	var id: String = parti[0]
+	var arg: String = parti[1] if parti.size() > 1 else ""
+	match id:
+		"C3":
+			# carri dei viveri sull'armata più grande, soprattutto se senza rifornimento
+			var sp := m.sp_in(arg, lato)
+			var senza := false
+			for u in m.unita_in(arg, lato):
+				if not m.rifornita(m.s["unita"][u], lato):
+					senza = true
+			return float(sp) * (2.0 if senza else 1.0) if sp >= 8 else 0.0
+		"C4":
+			var grandi := 0
+			for h in m.esagoni_di(lato):
+				if m.sp_in(h, lato) >= 6:
+					grandi += 1
+			return 5.0 if grandi >= 2 else 0.0
+		"C1":
+			return 6.0
+		"C7":
+			return 0.0
+		"C8":
+			return float(m.sp_in(arg, 1 - lato))
+		"Q12", "Q13":
+			return 3.0
+	if b == null:
+		return 0.0
+	var ix := 0 if lato == int(b["la"]) else 1
+	var r := _rapporto_corrente(b, lato)
+	match id:
+		"C2", "C13", "Q2", "Q6":
+			return 4.0
+		"Q3":
+			return 2.0
+		"Q4":
+			return 3.0 if m._sp_battaglia(b, lato) >= 6 else 0.0
+		"Q5":
+			return 3.5 if m._cavalleria(b, lato) >= 2 else 0.0
+		"Q11":
+			return 2.0 * float(m.s["capi"][arg]["v"])
+		"C10", "Q9":
+			return 4.0
+		"C11":
+			return 3.0 * float(b["dem"][ix])
+		"C12":
+			return 3.0 * float(b["dem"][ix]) + 1.0
+		"Q7":
+			return 6.0
+		"Q10+", "Q10-":
+			# la fortuna: solo se cambia il risultato a favore
+			var p: Dictionary = b["pend"]
+			var prima := m.esito_round(b)
+			var dv := 1 if id == "Q10+" else -1
+			p["tiro"] = clampi(int(p["tiro"]) + dv, 2, 12)
+			var dopo := m.esito_round(b)
+			p["tiro"] = clampi(int(p["tiro"]) - dv, 2, 12)
+			var gi := 0 if int(p["grande"]) == lato else 1
+			var guadagno := _peso_ris(dopo[1 - gi]) - _peso_ris(prima[1 - gi]) - (_peso_ris(dopo[gi]) - _peso_ris(prima[gi]))
+			return float(guadagno) * 2.0
+	return 0.0 if r < 0.3 else 0.0
+
+func _peso_ris(r: String) -> int:
+	return {"0": 0, "1": 1, "D1": 2, "D2": 3, "D3": 4}.get(r, 0)
 
 ## Contrattacco: solo con forze nettamente superiori e morale buono
 func _contro(rq: Dictionary) -> String:

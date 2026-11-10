@@ -1013,6 +1013,7 @@ const REGOLE_FACOLTATIVE := [
 	["guardia", "Guardia Imperiale (W)", "con Napoleone, morale 3 per il round; le perdite vanno sulla Guardia"],
 	["demoralizzato", "Combattimento demoralizzato (Y)", "a morale zero si perdono prigionieri ma non si è costretti a ritirarsi"],
 	["nebbia", "Nebbia di guerra (Z)", "le armate nemiche restano nascoste finché non le attacchi"],
+	["carte", "Carte evento comuni", "cuori, quadri e jolly: si pescano nella fase delle alleanze e cambiano battaglie, marce e logoramento"],
 ]
 
 func _pannello_regole(v: VBoxContainer) -> void:
@@ -1580,6 +1581,7 @@ func _aggiorna_tutto() -> void:
 		"movimento": fase = "movimento"
 		"dichiara": fase = "dichiarazione degli attacchi"
 		"citta", "assalto", "continua", "resta", "contro", "aggira", "guardia", "carica", "tattica": fase = "battaglie"
+		"carta", "reazione": fase = "carte evento"
 	if m.finita():
 		lbl_fase.text = "Partita finita"
 	else:
@@ -1646,6 +1648,7 @@ func _aggiorna_pannello() -> void:
 						dest_blu = m.destinazioni_mare(sel_capo, sel_porta)
 						_aggiorna_evidenze(), 17))
 			_pannello_movimento()
+			_mano_in_pannello(lato)
 		"dichiara":
 			lbl_stato.text = "%s: dichiara gli attacchi. Tocca un tuo esercito e poi l'esagono nemico (in rosso). Poi «Combatti»." % Dati.LATI[lato]
 			box_azioni.add_child(bottone("Combatti! (%d attacchi)" % m.s["batt"].size() if not m.s["batt"].is_empty() else "Nessun attacco: fine turno", func():
@@ -1657,6 +1660,11 @@ func _aggiorna_pannello() -> void:
 				var su: String = b["dif"]
 				rr.add_child(bottone("annulla", func(): _invia({"a": "annulla", "su": su}), 15))
 				box_azioni.add_child(rr)
+			_mano_in_pannello(lato)
+			_info_esagono(sel_hex)
+		"carta", "reazione":
+			lbl_stato.text = "Carte evento: decidi."
+			_mostra_scelta_carta(r)
 			_info_esagono(sel_hex)
 		_:
 			lbl_stato.text = "Battaglia in corso: decidi."
@@ -2104,6 +2112,89 @@ func _mostra_scelta_battaglia(r: Dictionary) -> void:
 			testo = "Nessun altro tentativo"
 		box_azioni.add_child(bottone(testo, func(): _invia({"a": "scelta", "v": v}), 19))
 	_centra_su(b["dif"])
+
+# ---------- carte evento
+
+const TESTI_FINESTRA := {
+	"logoramento": "Prima del logoramento puoi giocare una carta.",
+	"movimento": "All'inizio del movimento puoi giocare una carta.",
+	"round": "All'inizio del round di battaglia puoi giocare una carta.",
+	"dadi": "I dadi sono tirati: puoi giocare una carta prima che si applichi il risultato.",
+	"dopo": "Il round è finito: puoi giocare una carta.",
+}
+
+## Il lato di chi guarda (per mostrare la propria mano): online il proprio, contro l'IA il lato
+## umano, in due allo stesso dispositivo chi deve decidere
+func _mio_lato() -> int:
+	if m == null:
+		return -1
+	if online:
+		for l in [0, 1]:
+			if posti_lati[l] == mio_posto:
+				return l
+		return -1
+	if umani[0] and umani[1]:
+		var r := m.richiesta()
+		return int(r.get("lato", m.s["lato"])) if not r.is_empty() else int(m.s["lato"])
+	return 0 if umani[0] else (1 if umani[1] else -1)
+
+func _testo_opzione_carta(o: String) -> String:
+	if o == "passo":
+		return "Non giocare carte"
+	var parti := o.split("@")
+	var t := Carte.titolo(parti[0])
+	if parti.size() > 1:
+		var a: String = parti[1]
+		if m.s["capi"].has(a):
+			t += " — " + str(m.s["capi"][a]["nome"])
+		elif Dati.NAZ.has(a):
+			t += " — " + str(Dati.NAZ[a]["nome"])
+		else:
+			t += " — " + Mappa.nome(a)
+	return t
+
+func _mostra_scelta_carta(r: Dictionary) -> void:
+	var b = m._batt_corrente()
+	if r["k"] == "reazione":
+		box_azioni.add_child(etichetta("L'avversario gioca %s. Puoi annullarla con una tua carta." % _testo_opzione_carta(str(r["carta"])), F_TESTO, 18))
+		for o in r["opzioni"]:
+			var v: String = o
+			var t := "Lascia fare" if v == "lascia" else "Annulla con " + Carte.titolo(v)
+			box_azioni.add_child(bottone(t, func(): _invia({"a": "scelta", "v": v}), 18))
+	else:
+		var t: String = TESTI_FINESTRA.get(str(r["w"]), "")
+		if b != null and str(r["w"]) in ["round", "dadi", "dopo"]:
+			t = "Battaglia di %s, round %d. %s" % [Mappa.nome(b["dif"]), int(m.s["cb"]["r"]), t]
+		box_azioni.add_child(etichetta(t, F_TESTO, 18))
+		if b != null and str(r["w"]) == "dadi" and b.has("pend"):
+			var p: Dictionary = b["pend"]
+			var es := m.esito_round(b)
+			var g := int(p["grande"])
+			box_azioni.add_child(etichetta("Tiro %d (dadi %d+%d, modificatori %+d): %s %s, %s %s." % [int(p["tiro"]), int(p["d1"]), int(p["d2"]), int(p["mod"]), Dati.LATI_BREVI[g], _ris(es[0]), Dati.LATI_BREVI[1 - g], _ris(es[1])], F_GRASSETTO, 17))
+		for o in r["opzioni"]:
+			var v: String = o
+			var bt := bottone(_testo_opzione_carta(v), func(): _invia({"a": "scelta", "v": v}), 17)
+			if v != "passo":
+				var id := v.split("@")[0]
+				bt.tooltip_text = Carte.DATI["Q10" if id.begins_with("Q10") else id]["testo"]
+			bt.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			bt.custom_minimum_size.x = 380
+			box_azioni.add_child(bt)
+	_mano_in_pannello(int(r["lato"]))
+	if b != null:
+		_centra_su(b["dif"])
+
+## La mano del giocatore con il testo di ogni carta
+func _mano_in_pannello(l: int) -> void:
+	var mn := m.mano(l)
+	if mn.is_empty():
+		return
+	box_azioni.add_child(etichetta("Le tue carte evento (%d, al massimo %d)" % [mn.size(), m.limite_mano(l)], F_GRASSETTO, 17, C_BORDEAUX))
+	for id in mn:
+		var tit := Carte.titolo(id) + (" (bloccata in questo turno)" if m._bloccata(id) else "")
+		var l2 := etichetta("%s%s %s" % [tit, "" if tit.ends_with("!") else ".", Carte.DATI[id]["testo"]], F_TESTO, 15, C_SPENTO)
+		l2.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		box_azioni.add_child(l2)
 
 func _wellington_in(b: Dictionary) -> bool:
 	for h in b["hd"]:

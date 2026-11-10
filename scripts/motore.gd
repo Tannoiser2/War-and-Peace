@@ -77,6 +77,10 @@ func nuova(cfg: Dictionary) -> void:
 	_log("[b]%s[/b] — %s %d" % [scen["titolo"], Dati.MESI[s["mese"]], s["anno"]])
 	if opzione("carte"):
 		_prepara_carte()
+	for b in scen.get("blocchi_iniziali", []):
+		s["blocchi"][Mappa.hex(str(b[0]))] = int(b[1])
+	if scen.has("campagna"):
+		Campagna.prepara(self)
 	_inizia_segmento()
 
 ## Lo scenario in vigore alla data corrente: le "fasi" (scenari collegati) cambiano aree, regole
@@ -286,6 +290,12 @@ func aperto(h: String) -> bool:
 	if scen.has("aree") and not Mappa.area(h) in scen["aree"]:
 		return false
 	var st := Mappa.stato(h)
+	# campagna: tutta l'Europa è aperta (entrare in un paese neutrale è un'invasione), tranne le
+	# capitali delle potenze conquistate finché restano neutrali
+	if scen.has("campagna"):
+		if Mappa.ha_citta(h) and s["camp"]["in_conquista"].has(st) and Mappa.nome_citta(h) in Campagna.CAPITALI.get(st, []):
+			return false
+		return true
 	# città di uno stato neutrale che lo scenario apre (Ginevra francese nel 1796-97)
 	if Mappa.ha_citta(h) and Mappa.nome_citta(h) in scen.get("aperti_citta", []):
 		return true
@@ -484,6 +494,11 @@ func _libera(h: String, lato: int) -> bool:
 func _fonti_naz(naz: String, lato: int) -> Array:
 	var sp := _spec_fonti(naz, lato)
 	var out := []
+	# campagna: le città delle potenze conquistate e i rifornimenti dei trattati
+	if s.has("camp"):
+		for h in s["camp"]["fonti"]:
+			if int(s["camp"]["fonti"][h]) == lato and _libera(h, lato):
+				out.append(h)
 	if sp.is_empty() and not scen.has("fonti"):
 		for h in Mappa.esagoni:
 			if Mappa.ha_citta(h) and _fonte_standard(h, naz, lato):
@@ -737,11 +752,16 @@ func _inizia_segmento_dopo_logoramento() -> void:
 	var l: int = s["lato"]
 	if s["turno"] > 1:
 		_fase_logoramento()
-		_fase_alleanze()
+		if not scen.has("campagna"):
+			_fase_alleanze()
 		if carte_attive():
 			_pesca_carta(l)
 	_eventi_scenario()
 	_fase_rinforzi()
+	if scen.has("campagna") and not finita():
+		Campagna.inizio_segmento(self)
+		if finita():
+			return
 	_mobilitazione()
 	_carte_leve(l)
 	_punti_rimpiazzo()
@@ -1389,6 +1409,8 @@ func richiesta() -> Dictionary:
 	if s.has("reazione"):
 		var r: Dictionary = s["reazione"]
 		return {"k": "reazione", "lato": r["lato"], "carta": r["opz"], "da": r["da"], "opzioni": r["opzioni"]}
+	if s.has("scelte_c") and not s["scelte_c"].is_empty():
+		return s["scelte_c"][0]
 	if s.has("finestra") and not s["finestra"]["lati"].is_empty():
 		var f: Dictionary = s["finestra"]
 		var l := int(f["lati"][0])
@@ -1436,7 +1458,9 @@ func applica(d: Dictionary) -> bool:
 		"annulla":
 			ok = rq["k"] == "dichiara" and _annulla(str(d.get("su", "")))
 		"scelta":
-			if rq["k"] == "carta":
+			if rq["k"] == "scelta_c":
+				ok = Campagna.risolvi(self, rq, str(d.get("v", "")))
+			elif rq["k"] == "carta":
 				ok = _gioca_carta(int(rq["lato"]), str(d.get("v", "")))
 			elif rq["k"] == "reazione":
 				ok = _reazione(str(d.get("v", "")))
@@ -1539,6 +1563,11 @@ func raggiungibili(capo: String, porta: Dictionary, fm_max := 3) -> Dictionary:
 				fm_max = 0
 	if capo != "" and s["capi"].has(capo):
 		naz_gruppo[s["capi"][capo]["n"]] = true
+	# campagna: le truppe di Austria, Prussia e Russia alleate della Francia non le muove il Francese
+	if scen.has("campagna") and int(s["lato"]) == 0:
+		for nz in naz_gruppo:
+			if nz in ["AU", "PR", "RU"]:
+				return {}
 	var l: int = s["lato"]
 	var da: String = g["da"]
 	var limite_truppe: int = g["mp_truppe"] + (fm_max if not porta.is_empty() else 0)
@@ -1570,6 +1599,8 @@ func raggiungibili(capo: String, porta: Dictionary, fm_max := 3) -> Dictionary:
 		for v in Mappa.vicini(h):
 			var n: String = v[0]
 			if not entrabile(n, porta):
+				continue
+			if evita_neutrali and _terra_neutrale(n):
 				continue
 			var c := Mappa.costo(h, n)
 			# carta dei pontieri: il fiume di quell'esagono non costa per questo turno
@@ -1606,6 +1637,24 @@ func raggiungibili(capo: String, porta: Dictionary, fm_max := 3) -> Dictionary:
 			continue
 		out[h] = {"mp": dist[h], "fm": fm, "via": via[h]}
 	return out
+
+## L'IA della campagna evita le terre neutrali (entrarci è un'invasione)
+var evita_neutrali := false
+
+func _terra_neutrale(h: String) -> bool:
+	if not s.has("camp"):
+		return false
+	var st := Mappa.stato(h)
+	if st in Campagna.MAGGIORI:
+		return Campagna.stato(self, st) == "neutro" and not s["camp"]["in_conquista"].has(st)
+	return str(s["camp"]["minori"].get(st, "")) == "neutro"
+
+func _capo_in_citta(nome: String, citta: String) -> bool:
+	var h := Mappa.hex(citta)
+	for id in capi_in(h):
+		if s["capi"][id]["nome"] == nome:
+			return true
+	return false
 
 func _alleato_ostile_naz(n: String, altre: Dictionary) -> bool:
 	for cp in scen.get("non_insieme", []):
@@ -1672,7 +1721,13 @@ func _muovi(d: Dictionary) -> bool:
 	var g := info_gruppo(capo, porta)
 	if not g["ok"]:
 		return false
+	# campagna: se si può, la strada evita le terre neutrali (attraversarle è un'invasione)
+	var ev_prima := evita_neutrali
+	evita_neutrali = scen.has("campagna")
 	var rag := raggiungibili(capo, porta, fm)
+	evita_neutrali = ev_prima
+	if not rag.has(verso):
+		rag = raggiungibili(capo, porta, fm)
 	if not rag.has(verso):
 		return false
 	var l: int = s["lato"]
@@ -1884,6 +1939,9 @@ func _fine_movimento() -> void:
 	_compatta()
 	for h in s["controllo"].keys():
 		_aggiorna_controllo(h)
+	if scen.has("campagna"):
+		Campagna.dopo_movimento(self)
+		Campagna.controlla_conquiste(self)
 	s["fase"] = "dichiara"
 	s["batt"] = []
 	_log("Fine del movimento.")
@@ -3163,6 +3221,8 @@ func _fine_combattimento() -> void:
 	s["cb"] = {}
 	_compatta()
 	_navi_porti_caduti()
+	if scen.has("campagna"):
+		Campagna.controlla_conquiste(self)
 	if _controlla_vittoria_immediata():
 		return
 	_fine_segmento()
@@ -3273,6 +3333,8 @@ func _defezione(al: Dictionary) -> void:
 func _controlla_vittoria_immediata() -> bool:
 	if finita():
 		return true
+	if scen.has("campagna"):
+		return Campagna.vittoria_subito(self)
 	if sp_lato(0) == 0:
 		_chiudi(1, "L'esercito francese è distrutto.")
 		return true
@@ -3298,6 +3360,9 @@ func _vittoria_cond(quando: String) -> bool:
 	return false
 
 func _fine_partita() -> void:
+	if scen.has("campagna"):
+		Campagna.fine(self)
+		return
 	if scen.has("vittoria_cond"):
 		if _vittoria_cond("fine"):
 			return

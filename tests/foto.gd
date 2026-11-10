@@ -32,6 +32,10 @@ func _run():
 	main.scelta_scen = OS.get_environment("WP_SCEN") if OS.get_environment("WP_SCEN") != "" else "1805"
 	main._avvia_locale()
 	await shot("partita")
+	if modo == "europa":
+		main._europa_popup()
+		await shot("europa")
+		quit(); return
 	if modo == "nebbia":
 		main.sel_hex = Mappa.hex("Ulm")
 		main._aggiorna_tutto()

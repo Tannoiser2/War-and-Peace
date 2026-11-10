@@ -44,7 +44,15 @@ func _init(motore: Motore) -> void:
 	m = motore
 
 func decidi(rq: Dictionary) -> Dictionary:
+	m.evita_neutrali = m.scen.has("campagna")
+	var d := _decidi(rq)
+	m.evita_neutrali = false
+	return d
+
+func _decidi(rq: Dictionary) -> Dictionary:
 	match rq.get("k", ""):
+		"scelta_c":
+			return {"a": "scelta", "v": _scelta_campagna(rq)}
 		"movimento":
 			return _movimento(rq)
 		"dichiara":
@@ -162,8 +170,20 @@ func _obiettivi(lato: int) -> Array:
 	var ob: Dictionary = m.scen["obiettivi"][lato]
 	for nome in ob:
 		var h := Mappa.hex(nome)
-		if m.controllore(h) != lato:
+		if m.controllore(h) != lato and not (m.scen.has("campagna") and m.controllore(h) != 1 - lato):
 			out.append([h, float(ob[nome]) * 4.0, "citta"])
+	# campagna: le capitali e le città di produzione delle potenze nemiche (per conquistarle)
+	if m.scen.has("campagna"):
+		for naz in Campagna.MAGGIORI:
+			if Campagna.lato_stato(Campagna.stato(m, naz)) != 1 - lato or naz in ["EN"]:
+				continue
+			for h in Campagna.citta_chiave(m, naz):
+				if m.controllore(h) == 1 - lato:
+					out.append([h, 30.0, "citta"])
+		for code in Campagna.MINORI:
+			var hm := Mappa.hex(Campagna.MINORI[code]["citta"][0])
+			if hm != "" and m.controllore(hm) == 1 - lato:
+				out.append([hm, 10.0, "citta"])
 	# eserciti nemici
 	for h in m.esagoni_di(1 - lato):
 		var sp := m.sp_in(h, 1 - lato)
@@ -963,6 +983,34 @@ func _resta(rq: Dictionary) -> String:
 		return "ritirati"
 	return "resta"
 
+## Campagna: alleanze, Polonia, Tilsit
+func _scelta_campagna(rq: Dictionary) -> String:
+	var opz: Array = rq["opzioni"]
+	match str(rq["tipo"]):
+		"polonia":
+			return "granducato"
+		"tilsit":
+			return "si"
+		"alleanza":
+			# la potenza più forte da staccare dal nemico, o da portare dalla propria parte
+			var lato: int = rq["lato"]
+			var best := "nessuna"
+			var bv := -1
+			for o in opz:
+				if o == "nessuna":
+					continue
+				var sp := 0
+				for u in m.s["unita"].values():
+					if u["n"] == o:
+						sp += int(u["sp"])
+				var st := Campagna.stato(m, o)
+				var v := sp + (20 if (lato == 0 and st == "anti") or (lato == 1 and st == "pro") else 0)
+				if v > bv:
+					bv = v
+					best = o
+			return best
+	return opz[0]
+
 ## Guardia Imperiale (regola W): quando il morale francese è basso o la battaglia è decisiva
 func _guardia(rq: Dictionary) -> String:
 	var b: Dictionary = m.s["batt"][int(rq["b"])]
@@ -1164,7 +1212,12 @@ func _muovi_flotta(p: String, ids: Array, lato: int) -> Dictionary:
 				carico[id] = n
 				peso += n * costo
 		var capi := m.capi_in(p, lato)
-		if not carico.is_empty() or not capi.is_empty():
+		# la fanteria si imbarca solo con un capo
+		if capi.is_empty():
+			for id in carico.keys():
+				if not Dati.e_cavalleria(m.s["unita"][id]["t"]):
+					carico.erase(id)
+		if (not carico.is_empty() or not capi.is_empty()) and m.carico_valido(ids, carico, capi):
 			var dest := m.destinazioni_navali(ids, {"_": 1})
 			var best := ""
 			var bd := 9999

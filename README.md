@@ -38,6 +38,15 @@ Si gioca qui: https://tannoiser2.github.io/War-and-Peace/ (e nella ludoteca: htt
   è un dizionario: schieramento in forma breve (`G("Ulm", ["FR:Ney"], "FR 4I; FR:B 1I")`), rinforzi per data,
   alleanze ed eventi con condizioni ed effetti, fonti di rifornimento, condizioni di vittoria, "fasi" per gli
   scenari collegati. Gli esagoni ufficiali (es. P23) si scrivono `#riga,colonna` (riga = 56 - lettere, colonna + 5).
+- Campagna 1805-1815 (`1805c`, Grand Campaign Game per due giocatori, regole in `scripts/campagna.gd`): stato
+  politico delle potenze e degli stati minori (`s.camp`), produzione mensile dalle riserve con il calendario di
+  gennaio del Force Pool Display, alleanze a dado con scelta della potenza, conquiste e ricostruzione, invasioni dei
+  neutrali, Prussia (dal 1806), crisi spagnola (dal 1807), Russia (invasione, Tilsit), questione polacca, stati
+  minori creati dalla Francia, guerre lontane, Bernadotte, esilio e ritorno di Napoleone, flotte e blocchi iniziali,
+  condizioni di vittoria a due. Semplificazioni: produzione automatica, niente prestiti inglesi, corpi di spedizione,
+  prigionieri, Irlanda, invasione dell'Inghilterra attraverso la Manica, annessione dell'Olanda e pace di Presburgo;
+  le potenze neutrali non mosse da un giocatore restano ferme; Prussia e Russia alleate della Francia non si muovono.
+  Prova: `tests/camp.gd [turni] [seme]`.
 - Scenari del supplemento "A Soul for War and Peace" (Avalon Digital 2025): I Kosciuszko 1792 (`1792k`: alleanze a
   punti, mobilitazione polacca, Polonia aperta attorno alle sue città), II La Marseillaise 1792 (`1792`: guarnigioni
   imperiali fisse, Austriaci e Prussiani che non collaborano, morale francese 1, prove di lealtà, fase rivoluzionaria

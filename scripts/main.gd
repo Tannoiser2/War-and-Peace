@@ -1377,7 +1377,10 @@ func _costruisci_hud() -> void:
 	hb.add_child(lbl_fase)
 	lbl_pv = riga_lbl("", F_TESTO, 20, C_ORO)
 	hb.add_child(lbl_pv)
-	for b in [["Registro", _mostra_diario], ["Vista", _cambia_vista], ["Regole", _regole_popup], ["Menu", _menu_partita]]:
+	var bott := [["Registro", _mostra_diario], ["Vista", _cambia_vista], ["Regole", _regole_popup], ["Menu", _menu_partita]]
+	if m != null and m.scen.has("campagna"):
+		bott.push_front(["Europa", _europa_popup])
+	for b in bott:
 		var bt := bottone(b[0], b[1], 17)
 		bt.autowrap_mode = TextServer.AUTOWRAP_OFF
 		hb.add_child(bt)
@@ -1582,6 +1585,7 @@ func _aggiorna_tutto() -> void:
 		"dichiara": fase = "dichiarazione degli attacchi"
 		"citta", "assalto", "continua", "resta", "contro", "aggira", "guardia", "carica", "tattica": fase = "battaglie"
 		"carta", "reazione": fase = "carte evento"
+		"scelta_c": fase = "decisioni politiche"
 	if m.finita():
 		lbl_fase.text = "Partita finita"
 	else:
@@ -1589,6 +1593,9 @@ func _aggiorna_tutto() -> void:
 	var p0 := m.punti(0)
 	var p1 := m.punti(1)
 	lbl_pv.text = "Punti vittoria  Francia %d  ·  Coalizione %d" % [p0["tot"], p1["tot"]]
+	if m.scen.has("campagna"):
+		var pa := Campagna.punti_alleanza(m)
+		lbl_pv.text = "Alleanze  Francia %d  ·  Coalizione %d" % [pa[0], pa[1]]
 	diario.text = "\n".join(m.s["log"].slice(-160))
 	_aggiorna_pezzi()
 	_aggiorna_evidenze()
@@ -1665,6 +1672,17 @@ func _aggiorna_pannello() -> void:
 		"carta", "reazione":
 			lbl_stato.text = "Carte evento: decidi."
 			_mostra_scelta_carta(r)
+			_info_esagono(sel_hex)
+		"scelta_c":
+			lbl_stato.text = "%s: decisione politica." % Dati.LATI[lato]
+			box_azioni.add_child(etichetta(str(r["testo"]), F_TESTO, 18))
+			for i in r["opzioni"].size():
+				var v: String = r["opzioni"][i]
+				var bt := bottone(str(r["etichette"][i]), func(): _invia({"a": "scelta", "v": v}), 18)
+				bt.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+				bt.custom_minimum_size.x = 380
+				box_azioni.add_child(bt)
+			box_azioni.add_child(bottone("Guarda l'Europa", _europa_popup, 16))
 			_info_esagono(sel_hex)
 		_:
 			lbl_stato.text = "Battaglia in corso: decidi."
@@ -2197,6 +2215,56 @@ func _mano_in_pannello(l: int) -> void:
 		var l2 := etichetta("%s%s %s" % [tit, "" if tit.ends_with("!") else ".", Carte.DATI[id]["testo"]], F_TESTO, 15, C_SPENTO)
 		l2.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		box_azioni.add_child(l2)
+
+# ---------- campagna: la situazione politica
+
+func _europa_popup() -> void:
+	var v := _apri_popup("L'Europa", 1100)
+	var sc := ScrollContainer.new()
+	sc.custom_minimum_size = Vector2(1060, 600)
+	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	v.add_child(sc)
+	var col := VBoxContainer.new()
+	col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	col.add_theme_constant_override("separation", 6)
+	sc.add_child(col)
+	var c: Dictionary = m.s["camp"]
+	var nomi := {"pro": "con la Francia", "anti": "con la Coalizione", "neutro": "neutrale", "nonformato": "non ancora creato"}
+	col.add_child(etichetta("Potenze maggiori", F_GRASSETTO, 20, C_BORDEAUX))
+	for naz in Campagna.MAGGIORI:
+		var st := Campagna.stato(m, naz)
+		var extra := ""
+		if Campagna.conquiste(m, naz) > 0:
+			extra += ", conquistata %d volte" % Campagna.conquiste(m, naz)
+		if c["in_conquista"].has(naz):
+			extra += ", si sta ricostruendo (riserva %d PF)" % Campagna._riserva_terrestre(m, naz)
+		var l := etichetta("%s: %s%s." % [Dati.NAZ[naz]["nome"], nomi.get(st, st), extra], F_TESTO, 17)
+		l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		col.add_child(l)
+	col.add_child(etichetta("Stati minori", F_GRASSETTO, 20, C_BORDEAUX))
+	for gr in Campagna.GRUPPI:
+		var parti := []
+		for code in Campagna.GRUPPI[gr]:
+			parti.append("%s %s" % [Dati.MINORI.get(code, code), nomi.get(str(c["minori"].get(code, "neutro")), "")])
+		var l2 := etichetta("%s (%s): %s." % [Campagna.NOMI_GRUPPI[gr].capitalize(), nomi.get(Campagna.stato_gruppo(m, gr), ""), ", ".join(parti)], F_TESTO, 16)
+		l2.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		col.add_child(l2)
+	var pa := Campagna.punti_alleanza(m)
+	col.add_child(etichetta("Dado delle alleanze: %+d (punti Francia %d, Coalizione %d). Il Francese cambia una potenza con 0 o meno, l'Inglese con 7 o più." % [Campagna.modificatore(m), pa[0], pa[1]], F_TESTO, 16, C_SPENTO))
+	var g: Array = []
+	for k in c["guerre"]:
+		g.append({"america": "Inghilterra contro gli Stati Uniti", "turchia": "Russia contro la Turchia"}.get(k, k))
+	if not g.is_empty():
+		col.add_child(etichetta("Guerre lontane: " + ", ".join(g) + ".", F_TESTO, 16))
+	if int(c["spagna"]) >= 0 and Campagna.stato(m, "SP") == "pro":
+		col.add_child(etichetta("Crisi spagnola: indicatore a %d (a 0 la Spagna insorge)." % int(c["spagna"]), F_TESTO, 16))
+	col.add_child(etichetta("Città di produzione francesi: %d." % Campagna.produzione_francese(m), F_TESTO, 16))
+	col.add_child(etichetta("Cronaca", F_GRASSETTO, 20, C_BORDEAUX))
+	for x in c["storia"].slice(-40):
+		var l3 := etichetta(str(x), F_TESTO, 15, C_SPENTO)
+		l3.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		col.add_child(l3)
+	v.add_child(bottone("Chiudi", _chiudi_popup, 20))
 
 func _wellington_in(b: Dictionary) -> bool:
 	for h in b["hd"]:

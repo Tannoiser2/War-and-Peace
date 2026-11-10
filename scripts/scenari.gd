@@ -8,7 +8,7 @@ extends RefCounted
 
 ## In ordine cronologico, come nel libretto ufficiale (I-XIII); "1798n" è l'Egitto con le flotte
 const ELENCO := ["1796a", "1796", "1798", "1798n", "1800", "1805", "1806", "1809", "1812", "1813", "1814", "1815", "1808", "1811", "1812g",
-	"1792k", "1792", "1792s", "1796g", "1799", "1808c", "1809t", "1810t", "1811f", "1812b", "1813v"]
+	"1805c", "1792k", "1792", "1792s", "1796g", "1799", "1808c", "1809t", "1810t", "1811f", "1812b", "1813v"]
 
 static var _cache := {}
 
@@ -36,6 +36,7 @@ static func dati(id: String) -> Dictionary:
 			"1792": d = _marsigliese(false)
 			"1792s": d = _marsigliese(true)
 			"1792k": d = _kosciuszko()
+			"1805c": d = _campagna()
 			"1799": d = _suvarov()
 		if d.is_empty():
 			return {}
@@ -1535,5 +1536,71 @@ static func _kosciuszko() -> Dictionary:
 		"obiettivi": [{"Riga": 4, "Smolensk": 4, "Kiev": 4, "Minsk": 3, "Grodno": 3, "Vilna": 2},
 			{"Warsaw": 9, "Posen": 3, "Cracow": 3, "Brest-Litovsk": 4, "Grodno": 4, "Minsk": 4}],
 		"ia": {"difendi": [{"Warsaw": 8, "Brest-Litovsk": 3, "Grodno": 3}, {"Kiev": 4, "Riga": 4, "Smolensk": 4}]},
+		"margine": 0,
+	}
+
+# =============================================================================================
+# The Grand Campaign Game: War and Peace 1805-1815 (due giocatori; regole in scripts/campagna.gd)
+
+static func _campagna() -> Dictionary:
+	var vicino := func(c: String) -> String:
+		return c + ">"
+	return {
+		"id": "1805c",
+		"titolo": "Campagna 1805-1815",
+		"sottotitolo": "The Grand Campaign Game: War and Peace 1805-1815",
+		"descrizione": "Settembre 1805: Napoleone è imperatore e la Terza Coalizione si arma. Dieci anni di guerra su tutta l'Europa: produzione, alleanze che cambiano, potenze conquistate che si risollevano, la Spagna che insorge, la Russia, l'esilio e i Cento Giorni.",
+		"durata": "Centoventi turni mensili, da settembre 1805 ad agosto 1815 (Grand Campaign Game, due giocatori).",
+		"mese": 8, "anno": 1805, "turni": 120,
+		"aree": [1, 2, 3, 4],
+		"campagna": true,
+		"lati": {"FR": 0, "SP": 0, "B": 0, "H": 0, "I": 0, "Sz": 0, "Wu": 0, "R": 0, "Ba": 0, "Ha": 0,
+			"EN": 1, "AU": 1, "RU": 1, "Pt": 1, "PR": 1, "S": 1, "He": 1, "Br": 1, "D": 0, "Sw": 1, "N": 0, "Da": 0, "Po": 0, "W": 0, "K": 1},
+		"in_guerra": ["FR", "SP", "B", "H", "I", "Sz", "Wu", "R", "Ba", "Ha", "EN", "AU", "RU", "Pt"],
+		"neutrali": ["PR", "S", "He", "Br", "D", "Sw"],
+		"controllo": {"Munich": 1, "Hanover": 0, "Venice": 1},
+		"fonti_naz": {"EN": {"patria": true, "porti_propri": true, "stati": ["Pt"]}},
+		"rinforzi_regola": "vicina",
+		"mare": {"lato": 1, "naz": ["EN"], "max_sp": 4, "max_capi": -1, "da": "porto", "a": "porto_amico"},
+		"schieramento": [
+			G("Strasbourg", ["FR:Napoleon", "FR:Lannes", "FR:Ney"], "FR 8I 2GI 4C"), G("Metz", ["FR:Davout", "FR:Soult"], "FR 12I 1C"),
+			G("Milan", ["FR:Massena"], "FR 3I 1C; FR:I 4I 1C"), G("Coblenz", ["FR:Marmont"], "FR 3I 1C"), G("Cologne", ["FR:Bernadotte"], "FR 3I"),
+			G("Florence", ["FR:@0"], "FR 4I"), G("Brest", ["FR:@0"], "FR 4I"), G("Amsterdam", ["FR:@0:H"], "FR 3I; FR:H 3I 1C"), G("Hanover", [], "FR 1I"),
+			G("Toulon", [], "FR 6I"), G("Rochefort", [], "FR 4I"), G("Boulogne", [], "FR 3I"),
+			G("Wurzburg", ["FR:@0:B"], "FR:B 3I 1C"), G("Baden", [], "FR:R 1I"), G("Geneva", [], "FR:Sz 1I"), G("Stuttgart", [], "FR:Wu 2I"),
+			G("London", ["EN:@0"], "EN 6I 2C; EN:K 1I"), G("Gibraltar", [], "EN 1I"), G("Lisbon", ["EN:@0:Pt"], "EN:Pt 4I 1C"),
+			G("Brest-Litovsk", ["RU:Buxhowden", "RU:Constantine"], "RU 5I 2GI 1C 1GC"), G("Lublin", ["RU:Bagration", "RU:Kutusov"], "RU 7I 1C"),
+			G("Grodno", ["RU:Bennigsen"], "RU 3I 1C"), G("Moscow", ["RU:Barclay"], "RU 5I 1C"), G("St Petersburg", ["RU:@0"], "RU 5I 1C"),
+			G("Kiev", ["RU:Tormazov"], "RU 5I 1CC"),
+			G(vicino.call("Ulm"), ["AU:Ferdinand", "AU:Mack"], "AU 11I 3C"), G(vicino.call("Venice"), ["AU:Charles", "AU:Hiller"], "AU 14I 4C"),
+			G("Innsbruck", ["AU:John"], "AU 3I 1C"), G("Vienna", ["AU:@0"], "AU 2I"), G("Prague", [], "AU 1I"), G("Ratisbon", [], "AU 1I"),
+			G("Magdeburg", ["PR:Brunswick", "PR:Ruchel"], "PR 10I 1C"), G("Weimar", ["PR:Hohenlohe"], "PR 6I 1C"), G("Berlin", ["PR:@0"], "PR 1I"),
+			G("Dresden", ["PR:@0:S"], "PR 1I; PR:S 3I 1C"), G("Konigsberg", [], "PR 1I"), G("Posen", [], "PR 1I"), G("Thorn", [], "PR 1I"),
+			G("Brunswick", [], "PR:Br 1I"), G("Cassel", [], "PR:He 1I"),
+			G("Madrid", ["SP:Castanos"], "SP 5I 3C"), G("Corunna", ["SP:Blake"], "SP 4I"), G("Cadiz", [], "SP 4I"), G("Cartagena", ["SP:La Romana"], "SP 4I"),
+			G("Copenhagen", [], "FR:D 3I"), G("Lubeck+n", [], "FR:D 2I 1C"),
+			G("Stockholm", ["RU:@0:Sw"], "RU:Sw 6I 2C"), G("Stralsund", [], "RU:Sw 2I"), G("Lubeck", [], "RU:Sw 1I"),
+		],
+		"flotte": [
+			{"hex": "Brest", "navi": [["FR", "", "S", 3]]}, {"hex": "Amsterdam", "navi": [["FR", "", "S", 1]]},
+			{"hex": "Toulon", "navi": [["FR", "", "S", 3], ["FR", "", "T", 1]]}, {"hex": "Rochefort", "navi": [["FR", "", "S", 2]]},
+			{"hex": "Boulogne", "navi": [["FR", "", "T", 1]]},
+			{"hex": "Plymouth", "navi": [["EN", "", "T", 2]]}, {"hex": "Gibraltar", "navi": [["EN", "", "S", 1]]},
+			{"hex": "Amsterdam", "navi": [["EN", "", "S", 1]]}, {"hex": "Brest", "navi": [["EN", "", "S", 3]]}, {"hex": "Rochefort", "navi": [["EN", "", "S", 2]]},
+			{"hex": "Corunna", "navi": [["EN", "", "S", 2]]}, {"hex": "Cadiz", "navi": [["EN", "", "S", 1]]}, {"hex": "Cartagena", "navi": [["EN", "", "S", 1]]},
+			{"zona": "MOC", "navi": [["EN", "", "S", 1]], "capi": ["EN:Nelson"]},
+			{"hex": "Lisbon", "navi": [["EN", "Pt", "S", 2], ["EN", "Pt", "T", 1]]},
+			{"hex": "St Petersburg", "navi": [["RU", "", "S", 1], ["RU", "", "T", 1]]},
+			{"hex": "Corunna", "navi": [["SP", "", "S", 2], ["SP", "", "T", 1]]}, {"hex": "Cadiz", "navi": [["SP", "", "S", 1]]}, {"hex": "Cartagena", "navi": [["SP", "", "S", 1]]},
+			{"hex": "Copenhagen", "navi": [["FR", "D", "S", 3], ["FR", "D", "T", 1]]},
+			{"hex": "Stockholm", "navi": [["RU", "Sw", "S", 1], ["RU", "Sw", "T", 1]]},
+		],
+		"blocchi_iniziali": [["Amsterdam", 1], ["Brest", 1], ["Rochefort", 1], ["Corunna", 1], ["Cadiz", 1], ["Cartagena", 1]],
+		"punti_citta": [{}, {}],
+		"obiettivi": [{"Vienna": 9, "Munich": 4, "Ulm": 3, "Venice": 4, "Prague": 4, "Innsbruck": 3, "Budapest": 4, "Berlin": 7, "Magdeburg": 4, "Dresden": 3,
+				"Konigsberg": 4, "Warsaw": 5, "Danzig": 3, "Moscow": 6, "St Petersburg": 5, "Lisbon": 5, "Madrid": 5, "Hanover": 2, "Trieste": 3, "Florence": 2, "Frankfurt": 2},
+			{"Paris": 9, "Munich": 4, "Milan": 4, "Amsterdam": 4, "Brussels": 3, "Strasbourg": 3, "Lyon": 3, "Madrid": 4, "Hanover": 3, "Warsaw": 3}],
+		"ia": {"difendi": [{"Paris": 8, "Strasbourg": 3, "Milan": 3, "Munich": 3, "Amsterdam": 2}, {"Vienna": 8, "London": 9, "Lisbon": 4, "Moscow": 6, "St Petersburg": 6, "Berlin": 5}]},
+		"vittoria": "Partita a due giocatori: la Francia e i suoi alleati contro l'Inghilterra e i suoi. Vittoria decisiva francese subito se l'Inghilterra è conquistata e la Francia tiene Parigi e 15 città di produzione, oppure con Parigi, Mosca e 35 porti fra cui Lisbona e Anversa; marginale con Parigi, Mosca e 19 porti maggiori fra cui Anversa, La Coruña, Amburgo, Königsberg e Lisbona. Ad agosto 1815 vittoria marginale francese se a Parigi c'è un francese libero, la Francia non è mai stata conquistata, ha invaso la Spagna prima del 1809 e la Russia prima del 1813 e tiene almeno 4 città di produzione (con meno di 4 la vittoria marginale è inglese); pareggio se Napoleone è tornato dall'esilio e tiene Parigi; altrimenti vittoria decisiva inglese. Ogni mese: produzione dalle riserve (un dado: 1 o 2 punti per città di produzione), alleanze (il Francese con 0 o meno, l'Inglese con 7 o più), conquiste delle potenze (che poi si ricostruiscono neutrali), stati minori secondo chi tiene la loro città, Prussia che decide la guerra dal maggio 1806, crisi spagnola dal luglio 1807, questione polacca e Tilsit, guerre lontane, esilio di Napoleone.",
 		"margine": 0,
 	}

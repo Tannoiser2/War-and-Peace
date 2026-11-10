@@ -52,7 +52,10 @@ Si gioca qui: https://tannoiser2.github.io/War-and-Peace/ (e nella ludoteca: htt
   (o staccata dalle armate grandi) occupa i depositi vuoti e capi minori con i rinforzi fanno da convoglio,
   lasciando un PF in ogni deposito lungo la marcia. Le truppe dei depositi non vengono raccolte.
 - Strategie di scenario (`ia.asse`): nel 1814 Austriaci, Russi e Prussiani si radunano a Baden a gennaio e da
-  febbraio marciano insieme su Parigi, anche d'inverno con la marcia forzata.
+  febbraio marciano insieme su Parigi, anche d'inverno con la marcia forzata. Nel 1815 gli assi sono due:
+  Prussiani e Inglesi da Namur (da luglio), Austriaci e Russi da Baden (da agosto). Le armate in marcia
+  lungo un asse lasciano fino a tre depositi per non perdere il rifornimento, e i rinforzi inglesi fermi a
+  Londra attraversano la Manica verso il porto più vicino al fronte.
 - Per gli scenari nuovi l'IA sa anche: mandare i capi in più a prendere i rinforzi rimasti fermi senza capo,
   lasciare depositi lungo la strada (fanteria ogni 3 punti movimento, regola J6e) per non perdere il
   rifornimento, assaltare una città importante quando l'esercito è senza rifornimento e l'assedio è impossibile,

@@ -355,15 +355,24 @@ func _ammassare(lato: int) -> String:
 	return ""
 
 ## Strategia di scenario: le nazioni indicate si radunano in un punto e poi marciano insieme sull'obiettivo
-func _asse(lato: int) -> Dictionary:
-	var a: Dictionary = m.scen.get("ia", {}).get("asse", {})
-	if a.is_empty() or int(a["lato"]) != lato or not _attivo("ASSE"):
-		return {}
-	return a
+## Le strategie del lato: una o più (ognuna per alcune nazioni)
+func _assi(lato: int) -> Array:
+	var x: Variant = m.scen.get("ia", {}).get("asse", {})
+	var lista: Array = x if x is Array else [x]
+	var out := []
+	if not _attivo("ASSE"):
+		return out
+	for a in lista:
+		if not a.is_empty() and int(a["lato"]) == lato:
+			out.append(a)
+	return out
 
 func _bersaglio_asse(h: String, lato: int, naz: String) -> Array:
-	var a := _asse(lato)
-	if a.is_empty() or not naz in a["naz"]:
+	var a := {}
+	for x in _assi(lato):
+		if naz in x["naz"]:
+			a = x
+	if a.is_empty():
 		return []
 	var ob := Mappa.hex(str(a["obiettivo"]))
 	if m.controllore(ob) == lato and not m.nemico_fuori(ob, lato):
@@ -545,7 +554,7 @@ func _concretizza(p: Dictionary) -> Dictionary:
 		print("FERMO %s a %s: porta %s, raggiungibili %d" % [c["nome"], Mappa.nome(h), str(porta), rag2.size()])
 	if not d.is_empty() and _attivo("DEPOSITI"):
 		var rr := m.raggiungibili(capo, porta, int(d["fm"]))
-		var dep := _depositi(capo, porta, rr, str(d["verso"]), lato)
+		var dep := _depositi(capo, porta, rr, str(d["verso"]), lato, p["tipo"] == "asse")
 		if not dep.is_empty():
 			d["lascia"] = dep
 	return d
@@ -553,7 +562,7 @@ func _concretizza(p: Dictionary) -> Dictionary:
 ## Depositi: punti forza di fanteria lasciati lungo la strada perché la catena del rifornimento
 ## (al massimo 3 punti movimento fra un'unità rifornita e la successiva dello stesso colore) arrivi
 ## fino alla destinazione
-func _depositi(capo: String, porta: Dictionary, rag: Dictionary, verso: String, lato: int) -> Dictionary:
+func _depositi(capo: String, porta: Dictionary, rag: Dictionary, verso: String, lato: int, asse := false) -> Dictionary:
 	var c: Dictionary = m.s["capi"][capo]
 	var naz: String = c["n"]
 	var rif: Dictionary = m.s["rifornimento"].get(str(lato), {}).get(naz, {})
@@ -564,10 +573,11 @@ func _depositi(capo: String, porta: Dictionary, rag: Dictionary, verso: String, 
 		var u: Dictionary = m.s["unita"][id]
 		if not Dati.e_cavalleria(u["t"]) and not u["t"] in ["GI", "GC"]:
 			fanteria += int(porta[id])
-	if fanteria < 8:
+	if fanteria < (6 if asse else 8):
 		return {}
-	# vicino al nemico conta la massa: niente depositi
-	if _forza_vicina(verso, 1 - lato, 6) > 0:
+	# vicino al nemico conta la massa: niente depositi (ma un'armata in marcia sulla capitale
+	# nemica deve portarsi dietro la sua linea di rifornimento)
+	if not asse and _forza_vicina(verso, 1 - lato, 6) > 0:
 		return {}
 	var strada := m.percorso(rag, verso)
 	var da: String = c["h"]
@@ -593,7 +603,7 @@ func _depositi(capo: String, porta: Dictionary, rag: Dictionary, verso: String, 
 		if not gia and cur != verso:
 			dep[cur] = 1
 		if mp_di.call(verso) <= pc + 3:
-			if fanteria - dep.size() < 4 or dep.size() > 1:
+			if fanteria - dep.size() < 4 or dep.size() > (3 if asse else 1):
 				return {}
 			return dep
 		var prossimo := ""
@@ -1098,7 +1108,14 @@ func _via_mare(lato: int) -> Dictionary:
 			dest = m.destinazioni_mare("", porta)
 		var d0 := Mappa.distanza(h, obiettivo, 25)
 		var best := ""
-		var bd := d0 - 6
+		# chi marcia lungo un asse verso la capitale nemica accetta anche un guadagno piccolo:
+		# i rinforzi fermi in un porto lontano (Londra) raggiungono così il fronte
+		var soglia := 6
+		for a in _assi(lato):
+			for id in porta:
+				if m.s["unita"][id]["n"] in a["naz"]:
+					soglia = 1
+		var bd := d0 - soglia
 		for x in dest:
 			var dd := Mappa.distanza(x, obiettivo, 25)
 			if dd < bd:

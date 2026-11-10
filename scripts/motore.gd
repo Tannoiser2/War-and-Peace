@@ -1934,6 +1934,11 @@ func _avanza_battaglie() -> void:
 					_capi_catturati(b["dif"], int(b["ld"]))
 					s["assedi"].erase(b["dif"])
 					_aggiorna_controllo(b["dif"])
+					# se gli attaccanti venivano da un esagono vicino, entrano nella città vuota
+					if b["att"] != b["dif"] and sp_in(b["dif"], b["ld"]) == 0:
+						b["tipo"] = "campo"
+						_dopo_ritirata(b)
+						b["tipo"] = "assalto"
 					b["fine"] = true
 					cb["passo"] = "prossima"
 					continue

@@ -987,7 +987,9 @@ static func _waterloo() -> Dictionary:
 		"perche_default": "Parigi resiste fino a dicembre 1815: un'impresa quasi impossibile.",
 		"obiettivi": [{"Brussels": 8, "Namur": 4, "Liege": 4, "Antwerp": 4, "Coblenz": 3, "Mainz": 3},
 			{"Paris": 16, "Lille": 2, "Metz": 2, "Rheims": 2, "Lyon": 2, "Strasbourg": 2}],
-		"ia": {"difendi": [{"Paris": 16, "Lyon": 3}, {"Brussels": 6, "Antwerp": 3}]},
+		"ia": {"difendi": [{"Paris": 16, "Lyon": 3}, {"Brussels": 6, "Antwerp": 3}],
+			"asse": [{"lato": 1, "naz": ["PR", "EN"], "raduno": "Namur", "parti": 2, "obiettivo": "Paris"},
+				{"lato": 1, "naz": ["AU", "RU"], "raduno": "Baden", "parti": 3, "obiettivo": "Paris"}]},
 		"vittoria": "La Coalizione vince subito, alla fine di qualunque turno, se ha un punto forza rifornito e non assediato a Parigi; altrimenti vince la Francia a dicembre (è difficilissimo: conviene giocarlo due volte scambiandosi i lati e vedere chi tiene Parigi più a lungo). A giugno i Francesi muovono solo con la marcia forzata. Se una forza con Napoleone è demoralizzata, i Francesi regolari passano a morale 1 per sempre. Bruxelles francese porta via gli Olandesi a Wellington e dà 1 PF olandese a Napoleone ogni turno.",
 		"margine": 0,
 	}

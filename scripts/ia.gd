@@ -20,6 +20,11 @@ var _campi := {}
 ## 0 = prudente, 1 = normale, 2 = aggressiva
 var carattere := 1
 var _mare_fatto := {}
+## Catene di depositi: esagono -> nazione (posizioni dove serve un punto forza per il rifornimento)
+var catena := {}
+## nazione -> depositi ancora vuoti, dal lato delle fonti verso l'armata
+var vuoti := {}
+var _catena_fatta := {}
 
 ## Prove di confronto: WP_NO_<NOME> spegne un comportamento, WP_IA_VECCHIA=<lato> li spegne tutti per un lato
 func _attivo(nome: String) -> bool:
@@ -73,6 +78,11 @@ func _movimento(rq: Dictionary) -> Dictionary:
 		if not vm.is_empty():
 			return vm
 		_mare_fatto[k] = true
+	if not _catena_fatta.has(k):
+		var cc := _riempi_catena(int(rq["lato"]))
+		if not cc.is_empty():
+			return cc
+		_catena_fatta[k] = true
 	while not piano.is_empty():
 		var p: Dictionary = piano.pop_front()
 		var d := _concretizza(p)
@@ -165,9 +175,20 @@ func _pianifica(lato: int) -> void:
 	var assegnati := {}
 	# capi "in più" (nella pila ci sono più capi di quanti servano a portare le truppe) e capi quasi
 	# soli vanno a prendere le truppe rimaste ferme senza capo (rinforzi, guarnigioni liberate)
-	var raccoglitori := _raccolta(capi, lato) if _attivo("RACCOLTA") else {}
+	catena.clear()
+	vuoti.clear()
+	if _attivo("CATENE"):
+		_pianifica_catene(lato)
+	# convogli: un capo minore con fanteria ferma dentro il rifornimento porta i depositi lungo la catena
+	var convogli := _convogli(capi, lato)
+	for id in convogli:
+		piano.append({"capo": id, "da": m.s["capi"][id]["h"], "verso": convogli[id], "tipo": "catena"})
+	var raccoglitori := _raccolta(capi.filter(func(x): return not convogli.has(x)), lato) if _attivo("RACCOLTA") else {}
+	for id in convogli:
+		raccoglitori[id] = convogli[id]
 	for id in raccoglitori:
-		piano.append({"capo": id, "da": m.s["capi"][id]["h"], "verso": raccoglitori[id], "tipo": "raccogli"})
+		if not convogli.has(id):
+			piano.append({"capo": id, "da": m.s["capi"][id]["h"], "verso": raccoglitori[id], "tipo": "raccogli"})
 	# il capo migliore di ogni esagono sceglie il bersaglio, gli altri capi dello stesso esagono
 	# lo seguono (bataillon carré: corpi separati che convergono sullo stesso obiettivo)
 	var scelto_qui := {}
@@ -201,6 +222,13 @@ func _pianifica(lato: int) -> void:
 				if not m.rifornita(u, lato):
 					senza += int(u["sp"])
 		print("RIF t%d l%d PF %d senza rifornimento %d" % [m.s["turno"], lato, tot, senza])
+		var det := {}
+		for id in m.s["unita"]:
+			var u: Dictionary = m.s["unita"][id]
+			if m.lato_unita(u) == lato and u["h"] != "" and not m.rifornita(u, lato):
+				var kk: String = "%s@%s" % [u["n"], Mappa.nome(u["h"])]
+				det[kk] = int(det.get(kk, 0)) + int(u["sp"])
+		print("   SENZA ", det)
 		for p in piano:
 			var cc: Dictionary = m.s["capi"][p["capo"]]
 			print("PIANO t%d l%d %s (%dPF) %s -> %s [%s]" % [m.s["turno"], lato, cc["nome"], m.sp_in(cc["h"], lato), Mappa.nome(cc["h"]), Mappa.nome(p["verso"]) if p["verso"] != "" else "-", p["tipo"]])
@@ -212,7 +240,7 @@ func _pianifica(lato: int) -> void:
 func _truppe_ferme(lato: int) -> Dictionary:
 	var out := {}
 	for h in m.esagoni_di(lato):
-		if not m.capi_in(h, lato).is_empty():
+		if not m.capi_in(h, lato).is_empty() or catena.has(h):
 			continue
 		var per_naz := {}
 		for id in m.unita_in(h, lato, true):
@@ -426,9 +454,11 @@ func _concretizza(p: Dictionary) -> Dictionary:
 	if not m.s["capi"].has(capo):
 		return {}
 	var c: Dictionary = m.s["capi"][capo]
-	if c["h"] == "" or c["h"] != p["da"] and not p["tipo"] in ["raggiungi", "raccogli"]:
+	if c["h"] == "" or c["h"] != p["da"] and not p["tipo"] in ["raggiungi", "raccogli", "catena"]:
 		return {}
 	var h: String = c["h"]
+	if p["tipo"] == "catena":
+		return _muovi_convoglio(capo, lato)
 	if p["tipo"] == "raccogli":
 		var dest: String = p["verso"]
 		if h == dest or int(c["mp"]) > 0:
@@ -693,6 +723,8 @@ func _cavalleria_sola(lato: int) -> Dictionary:
 	for id in m.s["unita"]:
 		var u: Dictionary = m.s["unita"][id]
 		if m.lato_unita(u) != lato or u["mo"] or u["in"] or not Dati.e_cavalleria(u["t"]):
+			continue
+		if catena.get(u["h"], "") == u["n"]:
 			continue
 		if not m.capi_in(u["h"], lato).is_empty():
 			continue
@@ -1027,3 +1059,199 @@ func _via_mare(lato: int) -> Dictionary:
 		if best != "":
 			return {"a": "mare", "capo": capo, "porta": porta, "verso": best}
 	return {}
+
+# =============================================================================================
+# Catene di depositi (regola M3c): le armate fuori rifornimento ricevono una fila di punti forza dello
+# stesso colore, al massimo 3 punti movimento l'uno dall'altro, dalla fonte più vicina fino a loro.
+
+func _pianifica_catene(lato: int) -> void:
+	var rif_l: Dictionary = m.s["rifornimento"].get(str(lato), {})
+	# armate senza rifornimento, per nazione (le più grandi per prime)
+	var armate := []
+	for h in m.esagoni_di(lato):
+		var per_naz := {}
+		for id in m.unita_in(h, lato, true):
+			var u: Dictionary = m.s["unita"][id]
+			if not m.rifornita(u, lato):
+				per_naz[u["n"]] = int(per_naz.get(u["n"], 0)) + int(u["sp"])
+		for naz in per_naz:
+			if int(per_naz[naz]) >= 4:
+				armate.append([h, naz, int(per_naz[naz])])
+	armate.sort_custom(func(a, b): return int(a[2]) > int(b[2]))
+	var fatte := {}
+	for a in armate:
+		var h: String = a[0]
+		var naz: String = a[1]
+		if int(fatte.get(naz, 0)) >= 3:
+			continue
+		var rif: Dictionary = rif_l.get(naz, {})
+		if rif.is_empty():
+			continue
+		var cd := campo(h)
+		var b := ""
+		var bd := 9999
+		for x in rif:
+			var dx: int = cd.get(x, 9999)
+			if dx < bd and m.sp_in(x, 1 - lato) == 0:
+				bd = dx
+				b = x
+		if b == "" or bd > 30:
+			continue
+		# strada dalla fonte all'armata, scendendo nel campo delle distanze
+		var strada := [b]
+		var cur := b
+		while int(cd.get(cur, 9999)) > 0 and strada.size() < 40:
+			var best := ""
+			var bv: int = cd[cur]
+			for v in Mappa.vicini(cur):
+				var n: String = v[0]
+				if cd.has(n) and int(cd[n]) < bv and m.sp_in(n, 1 - lato) == 0 and m.aperto(n):
+					bv = cd[n]
+					best = n
+			if best == "":
+				break
+			strada.append(best)
+			cur = best
+		if cur != h:
+			continue
+		# depositi: ognuno entro 3 punti dal precedente, finché l'armata è entro 3 dall'ultimo
+		var ultimo: int = cd[b]
+		var prec := b
+		var nuovi := []
+		for i in range(1, strada.size()):
+			var p: String = strada[i]
+			if ultimo - int(cd[p]) > 3:
+				nuovi.append(prec)
+				ultimo = cd[prec]
+			if ultimo <= 3:
+				break
+			prec = p
+		if ultimo > 3 and ultimo - int(cd[prec]) <= 3 and prec != h:
+			nuovi.append(prec)
+		for q in nuovi:
+			if q == b:
+				continue
+			catena[q] = naz
+			var pieno := false
+			for id in m.unita_in(q, lato):
+				if m.s["unita"][id]["n"] == naz:
+					pieno = true
+			if not pieno:
+				if not vuoti.has(naz):
+					vuoti[naz] = []
+				if not q in vuoti[naz]:
+					vuoti[naz].append(q)
+		fatte[naz] = int(fatte.get(naz, 0)) + 1
+	if OS.get_environment("WP_DEBUG_IA") != "":
+		for naz in vuoti:
+			print("CATENA t%d l%d %s vuoti: %s" % [m.s["turno"], lato, naz, ", ".join(vuoti[naz].map(func(x): return Mappa.nome(x)))])
+
+## Cavalleria libera: va a occupare un deposito vuoto raggiungibile
+func _riempi_catena(lato: int) -> Dictionary:
+	for naz in vuoti:
+		var lista: Array = vuoti[naz]
+		for q in lista:
+			var pieno := false
+			for id in m.unita_in(q, lato):
+				if m.s["unita"][id]["n"] == naz:
+					pieno = true
+			if pieno:
+				continue
+			for id in m.s["unita"]:
+				var u: Dictionary = m.s["unita"][id]
+				if u["n"] != naz or m.lato_unita(u) != lato or u["mo"] or u["in"] or not Dati.e_cavalleria(u["t"]):
+					continue
+				if u["h"] == "" or catena.has(u["h"]):
+					continue
+				# dalla pila di un'armata si stacca un punto di cavalleria solo se l'armata è grande
+				if not m.capi_in(u["h"], lato).is_empty() and m.sp_in(u["h"], lato) < 6:
+					continue
+				# non si sguarnisce una città minacciata
+				if Mappa.ha_citta(u["h"]) and _forza_vicina(u["h"], 1 - lato, 4) > 0:
+					continue
+				var rag := m.raggiungibili("", {id: 1}, 0)
+				if rag.has(q) and not m.nemico_in(q, lato):
+					return {"a": "muovi", "capo": "", "porta": {id: 1}, "verso": q, "fm": 0}
+	return {}
+
+## Capi minori con fanteria ferma dentro il rifornimento: portano i depositi lungo la catena
+func _convogli(capi: Array, lato: int) -> Dictionary:
+	var out := {}
+	if vuoti.is_empty():
+		return out
+	var rif_l: Dictionary = m.s["rifornimento"].get(str(lato), {})
+	for id in capi:
+		var c: Dictionary = m.s["capi"][id]
+		var naz: String = c["n"]
+		if not vuoti.has(naz) or int(c["v"]) >= 3 or int(c["mp"]) > 0:
+			continue
+		var h: String = c["h"]
+		if not rif_l.get(naz, {}).has(h):
+			continue
+		var fanteria := 0
+		for uid in m.unita_in(h, lato, true):
+			var u: Dictionary = m.s["unita"][uid]
+			if u["n"] == naz and not Dati.e_cavalleria(u["t"]) and not u["mo"]:
+				fanteria += int(u["sp"])
+		if catena.get(h, "") == naz:
+			fanteria -= 1  # il deposito dove si trova resta
+		# solo truppe di seconda linea: non si smonta un'armata vicina al nemico
+		if fanteria < 1 or fanteria > 12 or _forza_vicina(h, 1 - lato, 3) > 0:
+			continue
+		var gia := 0
+		for x in out:
+			if m.s["capi"][x]["n"] == naz:
+				gia += 1
+		if gia >= 2:
+			continue
+		out[id] = vuoti[naz][0]
+	return out
+
+## Il convoglio marcia lungo la catena lasciando un punto forza in ogni deposito vuoto che attraversa
+func _muovi_convoglio(capo: String, lato: int) -> Dictionary:
+	var c: Dictionary = m.s["capi"][capo]
+	var naz: String = c["n"]
+	var h: String = c["h"]
+	var porta := {}
+	var tot := 0
+	var resta := 1 if catena.get(h, "") == naz else 0
+	for uid in m.unita_in(h, lato, true):
+		var u: Dictionary = m.s["unita"][uid]
+		if u["n"] == naz and not Dati.e_cavalleria(u["t"]) and not u["mo"] and not u["t"] in ["GI", "GC", "P"]:
+			var disp := int(u["sp"])
+			if resta > 0:
+				var k := mini(resta, disp)
+				disp -= k
+				resta -= k
+			var n := mini(disp, m.max_porta(capo) - tot)
+			if n > 0:
+				porta[uid] = n
+				tot += n
+	if porta.is_empty():
+		return {}
+	var rag := m.raggiungibili(capo, porta, 0)
+	var lista: Array = vuoti.get(naz, [])
+	# il deposito vuoto più lontano raggiungibile, lasciando 1 PF in quelli lungo la strada
+	var best := ""
+	var bl := {}
+	for q in lista:
+		if not rag.has(q) or m.nemico_in(q, lato):
+			continue
+		var strada := m.percorso(rag, q)
+		var lascia := {}
+		for p in strada:
+			if p in lista:
+				lascia[p] = 1
+		if lascia.size() > tot:
+			continue
+		if lascia.size() > bl.size() or best == "":
+			best = q
+			bl = lascia
+	if best == "":
+		# nessun deposito a portata: ci si avvicina al primo
+		if lista.is_empty():
+			return {}
+		return _verso_migliore(capo, porta, rag, campo(lista[0]), lato, lista[0], false)
+	for q in bl:
+		lista.erase(q)
+	return {"a": "muovi", "capo": capo, "porta": porta, "verso": best, "fm": 0, "lascia": bl}

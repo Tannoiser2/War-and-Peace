@@ -17,6 +17,7 @@ func _run():
 	main.on_nome.text = "Host" if role == "host" else "Ospite"
 	main.on_lato.selected = 0
 	if role == "host":
+		main.opz_regole = {"matrice": true, "carica": true, "guardia": true}
 		await main._online_crea()
 		var f := FileAccess.open(cf, FileAccess.WRITE)
 		f.store_string(main.codice)
@@ -49,5 +50,6 @@ func _run():
 		var r: Dictionary = main.m.richiesta()
 		if not r.is_empty() and main._chi(int(r["lato"])) == "io" and not main.invio_in_corso:
 			await main._invia(main.ia[int(r["lato"])].decidi(r))
+	print("WP opzioni ", main.m.s["opzioni"], " tattiche ", str(main.m.s["log"]).count("Matrice tattica"))
 	print("WP fine ", role, " azioni ", main.m.s["azioni"], " vince ", main.m.s["esito"].get("vince", "?"), " impronta ", str(main.m.s["log"]).hash())
 	quit()

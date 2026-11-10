@@ -37,6 +37,9 @@ func _attivo(nome: String) -> bool:
 	var v := OS.get_environment("WP_IA_VECCHIA")
 	return v == "" or int(v) != int(m.s["lato"])
 
+## Scelte nascoste (matrice tattica): un generatore proprio, fuori dallo stato della partita
+var rng := RandomNumberGenerator.new()
+
 func _init(motore: Motore) -> void:
 	m = motore
 
@@ -56,6 +59,15 @@ func decidi(rq: Dictionary) -> Dictionary:
 			return {"a": "scelta", "v": _resta(rq)}
 		"contro":
 			return {"a": "scelta", "v": _contro(rq)}
+		"aggira":
+			# la manovra sul retro si tenta sempre: se fallisce le truppe restano dove sono
+			return {"a": "scelta", "v": rq["opzioni"][0]}
+		"guardia":
+			return {"a": "scelta", "v": _guardia(rq)}
+		"carica":
+			return {"a": "scelta", "v": _carica(rq)}
+		"tattica":
+			return {"a": "scelta", "v": _tattica(rq)}
 		"navale":
 			return _navale(rq)
 	return {"a": "fine"}
@@ -944,6 +956,49 @@ func _resta(rq: Dictionary) -> String:
 	if r < 0.5 or (r < 0.8 and mor_mia <= 1):
 		return "ritirati"
 	return "resta"
+
+## Guardia Imperiale (regola W): quando il morale francese è basso o la battaglia è decisiva
+func _guardia(rq: Dictionary) -> String:
+	var b: Dictionary = m.s["batt"][int(rq["b"])]
+	var lato: int = rq["lato"]
+	var ix := 0 if lato == int(b["la"]) else 1
+	if int(b["dem"][ix]) > 0:
+		return "no"
+	var mor := m._morale_lato(b, lato)
+	var r := _rapporto_corrente(b, lato)
+	if mor < 3 and (r >= 0.7 or b["tipo"] == "assalto"):
+		return "guardia"
+	return "no"
+
+## Carica di cavalleria (regola V): solo la forza più grande guadagna (+1), e con cavalleria da spendere
+func _carica(rq: Dictionary) -> String:
+	var b: Dictionary = m.s["batt"][int(rq["b"])]
+	var lato: int = rq["lato"]
+	var r := _rapporto_corrente(b, lato)
+	var cav := m._cavalleria(b, lato)
+	if r >= 1.0 and cav >= 2 and cav * 3 <= m._sp_battaglia(b, lato) + 3:
+		return "carica"
+	return "no"
+
+## Matrice tattica: la ritirata se si vuole lasciare il campo, altrimenti la strategia mista
+## d'equilibrio della matrice (calcolata con la programmazione lineare: carica 2, aggiramento 3,
+## schermaglia 3, bombardamento 3, quadrato 0, fianco rifiutato 4 su 15)
+func _tattica(rq: Dictionary) -> String:
+	var b: Dictionary = m.s["batt"][int(rq["b"])]
+	var lato: int = rq["lato"]
+	var round_n := int(m.s["cb"]["r"])
+	if lato == int(b["la"]):
+		if round_n > 1 and _continua({"b": rq["b"], "lato": lato}) == "interrompi":
+			return "withdraw"
+	elif _resta({"b": rq["b"], "lato": lato}) == "ritirati":
+		return "withdraw"
+	var pesi := [["charge", 2], ["envelop", 3], ["skirmish", 3], ["bombard", 3], ["refuse", 4]]
+	var x := rng.randi_range(0, 14)
+	for p in pesi:
+		x -= int(p[1])
+		if x < 0:
+			return p[0]
+	return "refuse"
 
 ## Contrattacco: solo con forze nettamente superiori e morale buono
 func _contro(rq: Dictionary) -> String:

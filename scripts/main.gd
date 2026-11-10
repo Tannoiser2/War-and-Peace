@@ -896,7 +896,7 @@ func _sfondo() -> void:
 	bg.mouse_filter = Control.MOUSE_FILTER_STOP
 	schermo.add_child(bg)
 
-func _scheda_centrale(w: float, h: float) -> VBoxContainer:
+func _scheda_centrale(w: float, h: float, scorre := false) -> VBoxContainer:
 	var box := pannello()
 	box.set_anchors_preset(Control.PRESET_CENTER)
 	box.custom_minimum_size = Vector2(w, h)
@@ -905,7 +905,16 @@ func _scheda_centrale(w: float, h: float) -> VBoxContainer:
 	schermo.add_child(box)
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 12)
-	box.add_child(v)
+	if scorre:
+		# contenuto lungo: si scorre (anche trascinando con il dito)
+		var sc := ScrollContainer.new()
+		sc.custom_minimum_size = Vector2(w - 28, h - 28)
+		sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+		box.add_child(sc)
+		v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		sc.add_child(v)
+	else:
+		box.add_child(v)
 	return v
 
 func mostra_menu() -> void:
@@ -945,12 +954,37 @@ func _aggiorna_pezzi_vuoti() -> void:
 var scelta_lato := 0
 var scelta_modo := "ia"
 var scelta_scen := "1805"
+## Regole facoltative scelte a inizio partita (vanno nello stato del motore e nella stanza online)
+var opz_regole := {}
+const REGOLE_FACOLTATIVE := [
+	["matrice", "Matrice tattica", "a ogni round di battaglia campale si sceglie in segreto una tattica che modifica i dadi"],
+	["aggiramento", "Manovra sul retro (U)", "il Francese può far entrare nella battaglia un'armata vicina al nemico"],
+	["carica", "Carica di cavalleria (V)", "+1 alla forza più grande, -1 alla più piccola; le perdite vanno sulla cavalleria"],
+	["guardia", "Guardia Imperiale (W)", "con Napoleone, morale 3 per il round; le perdite vanno sulla Guardia"],
+	["demoralizzato", "Combattimento demoralizzato (Y)", "a morale zero si perdono prigionieri ma non si è costretti a ritirarsi"],
+]
+
+func _pannello_regole(v: VBoxContainer) -> void:
+	v.add_child(etichetta("Regole facoltative", F_GRASSETTO, 20, C_BORDEAUX))
+	var g := GridContainer.new()
+	g.columns = 2
+	g.add_theme_constant_override("h_separation", 12)
+	v.add_child(g)
+	for r in REGOLE_FACOLTATIVE:
+		var k: String = r[0]
+		var cb := CheckBox.new()
+		cb.text = r[1]
+		cb.button_pressed = bool(opz_regole.get(k, false))
+		cb.add_theme_font_size_override("font_size", 17)
+		cb.toggled.connect(func(on): opz_regole[k] = on)
+		g.add_child(cb)
+		g.add_child(riga_lbl(r[2], F_CORSIVO, 15, C_SPENTO))
 
 func _menu_nuova() -> void:
 	pulisci()
 	_sfondo()
 	var sc: Dictionary = Scenari.dati(scelta_scen)
-	var v := _scheda_centrale(1080, 900)
+	var v := _scheda_centrale(1080, 960, true)
 	var rs := GridContainer.new()
 	rs.columns = 4
 	rs.add_theme_constant_override("h_separation", 8)
@@ -1006,6 +1040,7 @@ func _menu_nuova() -> void:
 		b.button_pressed = carattere_ia == o[1]
 		b.pressed.connect(func(): carattere_ia = o[1])
 		r2.add_child(b)
+	_pannello_regole(v)
 	var r3 := HBoxContainer.new()
 	v.add_child(r3)
 	r3.add_child(bottone("Inizia", _avvia_locale, 26, 260))
@@ -1021,7 +1056,7 @@ func _avvia_locale() -> void:
 		_:
 			umani = [false, false]
 	m = Motore.new()
-	m.nuova({"scen": scelta_scen, "seed": int(Time.get_unix_time_from_system()) % 1000000})
+	m.nuova({"scen": scelta_scen, "seed": int(Time.get_unix_time_from_system()) % 1000000, "opzioni": opz_regole.duplicate()})
 	_prepara_ia()
 	_apri_partita()
 	_salva(true)
@@ -1091,7 +1126,7 @@ func _menu_regole() -> void:
 func _menu_online() -> void:
 	pulisci()
 	_sfondo()
-	var v := _scheda_centrale(860, 680)
+	var v := _scheda_centrale(960, 900, true)
 	v.add_child(etichetta("Gioca online", F_TITOLO, 44, C_BORDEAUX))
 	v.add_child(etichetta("Chi crea la stanza sceglie la sua parte; l'amico entra con il codice di 4 lettere e prende l'altra. Se l'amico non c'è, l'altra parte la guida l'IA.", F_TESTO, 20))
 	var r1 := HBoxContainer.new()
@@ -1116,6 +1151,7 @@ func _menu_online() -> void:
 	for id in Scenari.ELENCO:
 		on_scen.add_item(Scenari.dati(id)["titolo"])
 	r00.add_child(on_scen)
+	_pannello_regole(v)
 	v.add_child(bottone("Crea una stanza", _online_crea, 24))
 	var r2 := HBoxContainer.new()
 	v.add_child(r2)
@@ -1140,7 +1176,7 @@ func _online_crea() -> void:
 	on_stato.text = "Creo la stanza..."
 	net._save({"name": on_nome.text})
 	var lato := on_lato.selected
-	var c := await net.create_room(on_nome.text, {"lato": lato, "scen": Scenari.ELENCO[on_scen.selected]})
+	var c := await net.create_room(on_nome.text, {"lato": lato, "scen": Scenari.ELENCO[on_scen.selected], "opzioni": opz_regole.duplicate()})
 	if c == "":
 		on_stato.text = "Non riesco a creare la stanza: " + net.last_error
 		return
@@ -1201,7 +1237,8 @@ func _online_inizia() -> void:
 	lati[lato_host] = 0
 	if seats.has("1"):
 		lati[1 - lato_host] = 1
-	var game := {"seed": int(Time.get_unix_time_from_system()) % 1000000, "lati": lati, "scen": str(cfg.get("scen", "1805")) if cfg is Dictionary else "1805"}
+	var game := {"seed": int(Time.get_unix_time_from_system()) % 1000000, "lati": lati, "scen": str(cfg.get("scen", "1805")) if cfg is Dictionary else "1805",
+		"opzioni": cfg.get("opzioni", {}) if cfg is Dictionary else {}}
 	if not await net.start_room(codice, game):
 		on_stato.text = "Non riesco a iniziare: " + net.last_error
 		return
@@ -1217,7 +1254,7 @@ func _avvia_da_stanza(room: Dictionary) -> void:
 	posti_lati = [int(game["lati"][0]), int(game["lati"][1])]
 	umani = [posti_lati[0] == mio_posto, posti_lati[1] == mio_posto]
 	m = Motore.new()
-	m.nuova({"scen": str(game.get("scen", "1805")), "seed": int(game["seed"])})
+	m.nuova({"scen": str(game.get("scen", "1805")), "seed": int(game["seed"]), "opzioni": game.get("opzioni", {})})
 	_prepara_ia()
 	# si rigiocano le decisioni già prese
 	var log := await net.get_decisions(codice, 0)
@@ -1491,7 +1528,7 @@ func _aggiorna_tutto() -> void:
 		"navale": fase = "flotte"
 		"movimento": fase = "movimento"
 		"dichiara": fase = "dichiarazione degli attacchi"
-		"citta", "assalto", "continua", "resta", "contro": fase = "battaglie"
+		"citta", "assalto", "continua", "resta", "contro", "aggira", "guardia", "carica", "tattica": fase = "battaglie"
 	if m.finita():
 		lbl_fase.text = "Partita finita"
 	else:
@@ -1600,7 +1637,9 @@ func _info_esagono(h: String) -> void:
 			var c: Dictionary = m.s["capi"][id]
 			var rr := HBoxContainer.new()
 			rr.add_child(immagine("res://assets/pedine/%s.webp" % c["img"], 44, 42))
-			rr.add_child(etichetta("%s, comando %d" % [c["nome"], int(c["v"])], F_TESTO, 18))
+			var lc := etichetta("%s, comando %d" % [c["nome"], int(c["v"])], F_TESTO, 18)
+			lc.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			rr.add_child(lc)
 			pannello_info.add_child(rr)
 		for id in ids:
 			pannello_info.add_child(_riga_unita(id, false))
@@ -1941,6 +1980,9 @@ const TESTI_SCELTA := {
 	"ritirati": "Ritirati",
 	"contrattacca": "Contrattacca!",
 	"lascia": "Non contrattaccare",
+	"guardia": "Impegna la Guardia",
+	"carica": "Carica!",
+	"no": "No",
 }
 
 func _mostra_scelta_battaglia(r: Dictionary) -> void:
@@ -1957,13 +1999,85 @@ func _mostra_scelta_battaglia(r: Dictionary) -> void:
 			t = "Il nemico continua ad attaccare %s. Resti o ti ritiri di un esagono?" % Mappa.nome(b["dif"])
 		"contro":
 			t = "Il nemico ha interrotto l'attacco a %s. Vuoi contrattaccare? Le tue truppe impegnate diventano l'attaccante (regola N5): il terreno favorirà lui." % Mappa.nome(b["dif"])
+		"aggira":
+			t = "Manovra sul retro (regola U) a %s: un'armata con un capo, vicina al nemico ma non all'esagono che attacca, può entrare nella battaglia. Serve un dado più il valore del capo di almeno 5%s. Se riesce, il primo round ha +1 se la forza che attacca è la più grande, -1 se è la più piccola." % [Mappa.nome(b["dif"]), " (meno il valore di Wellington)" if _wellington_in(b) else ""]
+		"guardia":
+			t = "Battaglia di %s, round %d: impegni la Guardia Imperiale (regola W)? Per questo round il morale francese è 3 (zero se la forza è demoralizzata) e le perdite cadono prima sulla Guardia." % [Mappa.nome(b["dif"]), int(m.s["cb"]["r"])]
+		"carica":
+			t = "Battaglia di %s, round %d: lanci la cavalleria alla carica (regola V)? Dà +1 al tiro se sei la forza più grande, -1 se sei la più piccola; le perdite cadono prima sulla cavalleria." % [Mappa.nome(b["dif"]), int(m.s["cb"]["r"])]
+		"tattica":
+			t = "Battaglia di %s, round %d: scegli in segreto la tattica (matrice tattica). La Ritirata ti fa lasciare il campo a fine round; senza Ritirata ci si ritira solo con più cavalleria del nemico." % [Mappa.nome(b["dif"]), int(m.s["cb"]["r"])]
 	box_azioni.add_child(etichetta(t, F_TESTO, 18))
+	if r["k"] == "tattica":
+		if not b["rapporti"].is_empty():
+			box_azioni.add_child(_vista_rapporto(b["rapporti"][-1], false))
+		var gr := GridContainer.new()
+		gr.columns = 4
+		gr.add_theme_constant_override("h_separation", 6)
+		gr.add_theme_constant_override("v_separation", 6)
+		box_azioni.add_child(gr)
+		for o in r["opzioni"]:
+			var v: String = o
+			var bt := Button.new()
+			bt.text = Motore.TATTICHE[v]
+			bt.icon = tex("res://assets/pedine/tattica_%s.webp" % v)
+			bt.expand_icon = true
+			bt.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			bt.vertical_icon_alignment = VERTICAL_ALIGNMENT_TOP
+			bt.custom_minimum_size = Vector2(96, 110)
+			bt.add_theme_font_size_override("font_size", 14)
+			bt.pressed.connect(func(): _invia({"a": "scelta", "v": v}))
+			gr.add_child(bt)
+		box_azioni.add_child(bottone("Guarda la matrice tattica", _matrice_popup, 16))
+		_centra_su(b["dif"])
+		return
 	if not b["rapporti"].is_empty():
 		box_azioni.add_child(_vista_rapporto(b["rapporti"][-1], false))
 	for o in r["opzioni"]:
 		var v: String = o
-		box_azioni.add_child(bottone(TESTI_SCELTA.get(v, v), func(): _invia({"a": "scelta", "v": v}), 19))
+		var testo: String = TESTI_SCELTA.get(v, v)
+		if r["k"] == "aggira" and v != "no":
+			var capi := []
+			for c in m.capi_in(v, 0):
+				capi.append("%s %d" % [m.s["capi"][c]["nome"], int(m.s["capi"][c]["v"])])
+			testo = "Tenta da %s (%d PF, %s)" % [Mappa.nome(v), m.sp_in(v, 0, true), ", ".join(capi)]
+		elif r["k"] == "aggira":
+			testo = "Nessun altro tentativo"
+		box_azioni.add_child(bottone(testo, func(): _invia({"a": "scelta", "v": v}), 19))
 	_centra_su(b["dif"])
+
+func _wellington_in(b: Dictionary) -> bool:
+	for h in b["hd"]:
+		for c in m.capi_in(h, int(b["ld"])):
+			if m.s["capi"][c]["nome"] == "Wellington":
+				return true
+	return false
+
+## La matrice tattica come sul foglio delle tabelle: righe la forza più piccola, colonne la più grande
+func _matrice_popup() -> void:
+	var v := _apri_popup("Matrice tattica per le battaglie campali", 1000)
+	v.add_child(etichetta("Si incrocia la tattica della forza più grande (colonne) con quella della più piccola (righe) e il numero si somma al tiro dei dadi. NC: in questo round non si combatte. Tra parentesi: la battaglia finisce a fine round perché qualcuno si ritira.", F_TESTO, 17))
+	var g := GridContainer.new()
+	g.columns = 8
+	g.add_theme_constant_override("h_separation", 14)
+	g.add_theme_constant_override("v_separation", 6)
+	v.add_child(g)
+	g.add_child(riga_lbl("piccola / grande", F_CORSIVO, 15, C_SPENTO))
+	for k in Motore.ORDINE_TATTICHE:
+		g.add_child(riga_lbl(Motore.TATTICHE[k], F_GRASSETTO, 15, C_BORDEAUX))
+	for i in Motore.ORDINE_TATTICHE.size():
+		var kr: String = Motore.ORDINE_TATTICHE[i]
+		g.add_child(riga_lbl(Motore.TATTICHE[kr], F_GRASSETTO, 15, C_BORDEAUX))
+		for j in Motore.ORDINE_TATTICHE.size():
+			var kc: String = Motore.ORDINE_TATTICHE[j]
+			var x = Motore.MATRICE[i][j]
+			var t: String = "NC" if x is String else ("%+d" % int(x) if int(x) != 0 else "0")
+			if kr == "withdraw" or kc == "withdraw":
+				t = "(%s)" % t
+			var l := riga_lbl(t, F_TESTO, 17)
+			l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			g.add_child(l)
+	v.add_child(bottone("Chiudi", _chiudi_popup, 20))
 
 func _vista_rapporto(rep: Dictionary, grande: bool) -> Control:
 	var v := VBoxContainer.new()
@@ -1981,6 +2095,9 @@ func _vista_rapporto(rep: Dictionary, grande: bool) -> Control:
 			mods.append("%s %+d" % [x[0], int(x[1])])
 	var dadi := HBoxContainer.new()
 	dadi.add_theme_constant_override("separation", 8)
+	if int(rep["dadi"][0]) == 0:
+		v.add_child(etichetta("Le tattiche scelte non portano allo scontro: in questo round non si combatte.", F_CORSIVO, fs))
+		return v
 	for d in rep["dadi"]:
 		dadi.add_child(Dado.new(int(d), false, 40.0 if grande else 30.0))
 	dadi.add_child(riga_lbl("  modificatori %+d%s  »  %d" % [int(rep["mod"]), (" (" + ", ".join(mods) + ")") if not mods.is_empty() else "", int(rep["tiro"])], F_TESTO, fs))

@@ -41,6 +41,12 @@ Si gioca qui: https://tannoiser2.github.io/War-and-Peace/ (e nella ludoteca: htt
 - Regole navali del Grand Campaign Game (sezione F): squadre e trasporti, 4 PM, zone di mare (Atlantico, Mare
   del Nord, Baltico, Mediterraneo occidentale e orientale), intercettazione, combattimento con la Naval Results
   Table e la Naval Damage Table, inseguimento, blocco, trasporti senza scorta, burrasche, Nelson.
+- Regole facoltative di battaglia, da scegliere a inizio partita (anche online, nella stanza): matrice tattica
+  (Optional Tactical Matrix del foglio delle tabelle, con i segnalini originali), manovra sul retro (U), carica di
+  cavalleria (V), Guardia Imperiale (W), combattimento demoralizzato (Y). L'IA sceglie la tattica con la strategia
+  mista d'equilibrio della matrice (o la ritirata se vuole lasciare il campo), carica quando è la forza più grande,
+  impegna la Guardia quando il morale francese è basso e tenta sempre la manovra sul retro. Per le simulazioni:
+  `WP_OPZIONI=matrice,carica,guardia,aggiramento,demoralizzato`.
 - Contrattacchi (regola N5): quando l'attaccante interrompe una battaglia campale, il difeso può contrattaccare.
 - La mappa ha anche il riquadro dell'Egitto (150 esagoni con Nilo, deserto, Siria) e le zone di mare dei porti e
   delle coste (`tools/estrazione/mari_egitto.py`).

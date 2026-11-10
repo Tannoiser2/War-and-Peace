@@ -1320,7 +1320,7 @@ func applica(d: Dictionary) -> bool:
 		"annulla":
 			ok = rq["k"] == "dichiara" and _annulla(str(d.get("su", "")))
 		"scelta":
-			ok = rq["k"] in ["citta", "assalto", "continua", "resta", "contro"] and _scelta(rq, str(d.get("v", "")))
+			ok = rq["k"] in ["citta", "assalto", "continua", "resta", "contro", "aggira", "guardia", "carica", "tattica"] and _scelta(rq, str(d.get("v", "")))
 	if ok:
 		s["azioni"] += 1
 	return ok
@@ -1805,6 +1805,8 @@ func _richiesta_battaglie() -> Dictionary:
 			return {"k": "resta", "lato": b["ld"], "b": cb["i"], "opzioni": ["resta", "ritirati"]}
 		"contro":
 			return {"k": "contro", "lato": b["ld"], "b": cb["i"], "opzioni": ["contrattacca", "lascia"]}
+		"decidi":
+			return _prossima_decisione(b, int(cb["i"]))
 	return {}
 
 func _scelta(rq: Dictionary, v: String) -> bool:
@@ -1820,11 +1822,11 @@ func _scelta(rq: Dictionary, v: String) -> bool:
 			if sp_in(b["dif"], b["ld"], true) == 0 and sp_in(b["dif"], b["ld"], false, true) > 0:
 				cb["passo"] = "assalto"
 				return true
-			cb["passo"] = "risolvi"
+			_prepara_round(b)
 		"assalto":
 			if v == "assalto":
 				b["tipo"] = "assalto"
-				cb["passo"] = "risolvi"
+				_prepara_round(b)
 			elif v == "assedio":
 				_metti_assedio(b)
 				b["fine"] = true
@@ -1844,6 +1846,13 @@ func _scelta(rq: Dictionary, v: String) -> bool:
 					cb["passo"] = "prossima"
 			else:
 				cb["passo"] = "resta" if b["tipo"] == "campo" else "rinforzi"
+				if b["tipo"] == "campo" and opzione("matrice"):
+					if b["tat"][1] == "withdraw":
+						_ritirata_lato(b, b["ld"], true)
+						_dopo_ritirata(b)
+						cb["passo"] = "prossima"
+					elif _cavalleria(b, int(b["ld"])) <= _cavalleria(b, int(b["la"])):
+						cb["passo"] = "rinforzi"
 		"contro":
 			if v == "lascia":
 				b["fine"] = true
@@ -1860,6 +1869,20 @@ func _scelta(rq: Dictionary, v: String) -> bool:
 				cb["passo"] = "prossima"
 			else:
 				cb["passo"] = "rinforzi"
+		"aggira":
+			if v == "no":
+				b["coda"].pop_front()
+			else:
+				_tenta_aggiramento(b, v)
+		"guardia", "carica", "tattica":
+			var ix := 0 if int(rq["lato"]) == int(b["la"]) else 1
+			b["coda"].pop_front()
+			if rq["k"] == "tattica":
+				b["tat"][ix] = v
+			else:
+				b[rq["k"]][ix] = v != "no"
+				if v != "no":
+					_log("%s: %s impegnano %s." % [Mappa.nome(b["dif"]), Dati.LATI_BREVI[int(rq["lato"])], "la Guardia Imperiale" if rq["k"] == "guardia" else "la cavalleria alla carica"])
 	_avanza_battaglie()
 	return true
 
@@ -1904,7 +1927,7 @@ func _avanza_battaglie() -> void:
 						b["pre"] = true
 						if s["assedi"].has(b["dif"]):
 							b["tipo"] = "assalto"
-							cb["passo"] = "risolvi"
+							_prepara_round(b)
 							continue
 						cb["passo"] = "assalto"
 						return
@@ -1916,16 +1939,33 @@ func _avanza_battaglie() -> void:
 						cb["passo"] = "assalto"
 						return
 					b["pre"] = true
+				_prepara_round(b)
+			"decidi":
+				if not _prossima_decisione(b, i).is_empty():
+					return
+				if b["tipo"] == "campo" and opzione("matrice"):
+					_log("Matrice tattica a %s: %s, %s." % [Mappa.nome(b["dif"]), Dati.LATI_BREVI[int(b["la"])] + " " + TATTICHE[b["tat"][0]], Dati.LATI_BREVI[int(b["ld"])] + " " + TATTICHE[b["tat"][1]]])
 				cb["passo"] = "risolvi"
 			"risolvi":
 				_risolvi_round(b)
+				# regola Y: chi ha morale zero perde prigionieri invece di ritirarsi o arrendersi
+				if opzione("demoralizzato") and _battaglia_viva(b):
+					for lx in [int(b["la"]), int(b["ld"])]:
+						if _morale_lato(b, lx) <= 0 and _sp_battaglia(b, lx) > 0:
+							var cx := _capo_battaglia(b, lx)
+							var td := dado() - (int(s["capi"][cx]["v"]) if cx != "" else 0)
+							if td > 0:
+								_log("%s demoralizzati: %d PF si arrendono." % [Dati.LATI_BREVI[lx], td])
+								_elimina_battaglia(b, lx, td, false, cx)
+								_compatta_battaglia(b)
+								_controlla_capi_soli(b, lx)
 				if not _battaglia_viva(b):
 					_dopo_ritirata(b)
 					b["fine"] = true
 					cb["passo"] = "prossima"
 					continue
 				# assalto: i difensori con morale zero si arrendono
-				if b["tipo"] == "assalto" and _morale_lato(b, int(b["ld"])) <= 0:
+				if b["tipo"] == "assalto" and _morale_lato(b, int(b["ld"])) <= 0 and not opzione("demoralizzato"):
 					var n := sp_in(b["dif"], b["ld"], false, true)
 					for id in unita_in(b["dif"], b["ld"]):
 						if s["unita"][id]["in"]:
@@ -1943,19 +1983,170 @@ func _avanza_battaglie() -> void:
 					cb["passo"] = "prossima"
 					continue
 				cb["passo"] = "continua"
+				# matrice tattica: chi ha scelto la ritirata lascia il campo; gli altri solo con più cavalleria
+				if b["tipo"] == "campo" and opzione("matrice"):
+					if b["tat"][0] == "withdraw":
+						_scelta({"k": "continua", "opzioni": ["interrompi"]}, "interrompi")
+						return
+					if _cavalleria(b, int(b["la"])) <= _cavalleria(b, int(b["ld"])):
+						cb["passo"] = "resta"
+						if b["tat"][1] == "withdraw":
+							_scelta({"k": "resta", "opzioni": ["ritirati"]}, "ritirati")
+							return
+						if _cavalleria(b, int(b["ld"])) <= _cavalleria(b, int(b["la"])):
+							cb["passo"] = "rinforzi"
+							continue
 				return
 			"rinforzi":
 				_rinforzi_battaglia(b)
-				# ritirata obbligatoria con morale zero (solo battaglia campale)
-				if b["tipo"] == "campo":
+				# ritirata obbligatoria con morale zero (solo battaglia campale; non con la regola Y)
+				if b["tipo"] == "campo" and not opzione("demoralizzato"):
 					for lato in [int(b["la"]), int(b["ld"])]:
 						if _morale_lato(b, lato) <= 0 and _sp_battaglia(b, lato) > 0:
-							_log("Morale a zero: %s si ritira." % LATI_FORZE(lato))
+							_log("Morale a zero: %s si ritirano." % LATI_FORZE(lato))
 							_ritirata_lato(b, lato, false)
 				if not _battaglia_viva(b):
 					_dopo_ritirata(b)
 					b["fine"] = true
 				cb["passo"] = "prossima"
+
+# ---------- regole facoltative di battaglia
+
+## Tattiche della matrice (chiave inglese del regolamento, nome italiano)
+const TATTICHE := {"charge": "Carica", "envelop": "Aggiramento", "skirmish": "Schermaglia", "bombard": "Bombardamento",
+	"square": "Quadrato", "refuse": "Fianco rifiutato", "withdraw": "Ritirata"}
+const ORDINE_TATTICHE := ["charge", "envelop", "skirmish", "bombard", "square", "refuse", "withdraw"]
+## Optional Tactical Matrix for Field Battles: righe la forza più piccola, colonne la più grande
+## (stesso ordine di ORDINE_TATTICHE); "NC" = nessun combattimento nel round
+const MATRICE := [
+	[0, 1, -2, 1, 2, 0, -2],
+	[-1, 0, -1, -1, 1, 2, -1],
+	[2, 1, 0, -1, -1, -1, 0],
+	[-1, 1, 1, 0, -2, -1, "NC"],
+	[-2, -1, 1, 2, "NC", "NC", "NC"],
+	[0, -2, 1, 1, "NC", "NC", "NC"],
+	[2, 1, 0, "NC", "NC", "NC", "NC"],
+]
+
+func opzione(nome: String) -> bool:
+	return bool(s["opzioni"].get(nome, false))
+
+static func valore_matrice(piccola: String, grande: String) -> Variant:
+	var r := ORDINE_TATTICHE.find(piccola)
+	var c := ORDINE_TATTICHE.find(grande)
+	if r < 0 or c < 0:
+		return 0
+	return MATRICE[r][c]
+
+func _cavalleria(b: Dictionary, lato: int) -> int:
+	var t := 0
+	for id in _impegnate(b, lato):
+		if Dati.e_cavalleria(s["unita"][id]["t"]):
+			t += int(s["unita"][id]["sp"])
+	return t
+
+## Prima di ogni round: le decisioni facoltative (aggiramento, Guardia, carica, matrice tattica)
+func _prepara_round(b: Dictionary) -> void:
+	b["guardia"] = [false, false]
+	b["carica"] = [false, false]
+	b["tat"] = ["", ""]
+	var coda := []
+	if int(s["cb"]["r"]) == 1 and opzione("aggiramento") and b["tipo"] == "campo" and int(b["la"]) == 0 and not s["cb"].has("aggira_b"):
+		coda.append(["aggira", 0])
+	_rifornimento_battaglia(int(b["la"]))
+	_rifornimento_battaglia(int(b["ld"]))
+	var grande := int(b["la"]) if _forza_effettiva(b, int(b["la"])) >= _forza_effettiva(b, int(b["ld"])) else int(b["ld"])
+	for lx in [grande, 1 - grande]:
+		coda.append(["guardia", lx])
+		coda.append(["carica", lx])
+	coda.append(["tattica", int(b["la"])])
+	coda.append(["tattica", int(b["ld"])])
+	b["coda"] = coda
+	s["cb"]["passo"] = "decidi"
+
+## La prossima decisione da chiedere prima del round (salta quelle che non si applicano)
+func _prossima_decisione(b: Dictionary, bi: int) -> Dictionary:
+	var coda: Array = b.get("coda", [])
+	while not coda.is_empty():
+		var k: String = coda[0][0]
+		var lx := int(coda[0][1])
+		var ix := 0 if lx == int(b["la"]) else 1
+		var rq := {"k": k, "lato": lx, "b": bi}
+		match k:
+			"aggira":
+				var cand := hex_aggiramento(b)
+				if not cand.is_empty():
+					rq["opzioni"] = cand + ["no"]
+					return rq
+			"guardia":
+				if opzione("guardia") and _guardia_disponibile(b, lx):
+					rq["opzioni"] = ["guardia", "no"]
+					return rq
+			"carica":
+				if opzione("carica") and b["tipo"] == "campo" and not b["guardia"][ix] and _cavalleria(b, lx) > 0:
+					rq["opzioni"] = ["carica", "no"]
+					return rq
+			"tattica":
+				if opzione("matrice") and b["tipo"] == "campo":
+					rq["opzioni"] = ORDINE_TATTICHE.duplicate()
+					return rq
+		coda.pop_front()
+	return {}
+
+## Regola W: forza francese guidata da Napoleone con punti forza della Guardia
+func _guardia_disponibile(b: Dictionary, lato: int) -> bool:
+	var c := _capo_battaglia(b, lato)
+	if c == "" or s["capi"][c]["nome"] != "Napoleon":
+		return false
+	for id in _impegnate(b, lato):
+		if s["unita"][id]["n"] == "FR" and s["unita"][id]["t"] in ["GI", "GC"]:
+			return true
+	return false
+
+## Regola U: esagoni da cui il Francese può tentare la manovra sul retro (vicini al difensore, non
+## all'esagono che attacca, con un capo e truppe che non attaccano altrove)
+func hex_aggiramento(b: Dictionary) -> Array:
+	var out := []
+	var usati := {}
+	for bb in s["batt"]:
+		for h in bb["ha"]:
+			usati[h] = true
+	for v in Mappa.vicini(b["dif"]):
+		var h: String = v[0]
+		if h == b["att"] or usati.has(h) or Mappa.adiacenti(h, b["att"]) or h in b.get("tentati", []):
+			continue
+		if capi_in(h, 0).is_empty() or sp_in(h, 0, true) == 0:
+			continue
+		out.append(h)
+	return out
+
+func _tenta_aggiramento(b: Dictionary, h: String) -> void:
+	if not h in hex_aggiramento(b):
+		return
+	if not b.has("tentati"):
+		b["tentati"] = []
+	b["tentati"].append(h)
+	s["cb"]["aggira_b"] = s["cb"]["i"]
+	var v := 0
+	for c in capi_in(h, 0):
+		v = maxi(v, int(s["capi"][c]["v"]))
+	var w := 0
+	for hd in b["hd"]:
+		for c in capi_in(hd, int(b["ld"])):
+			if s["capi"][c]["nome"] == "Wellington":
+				w = int(s["capi"][c]["v"])
+	var d := dado()
+	var tot := d + v - w
+	if tot >= 5:
+		for id in unita_in(h, 0, true):
+			s["unita"][id]["h"] = b["att"]
+		for c in capi_in(h, 0):
+			s["capi"][c]["h"] = b["att"]
+		b["aggira_ok"] = true
+		_log("[b]Manovra sul retro[/b] da %s riuscita (dado %d, totale %d): le truppe entrano nella battaglia di %s." % [Mappa.nome(h), d, tot, Mappa.nome(b["dif"])])
+		eventi.append({"k": "annuncio", "t": "Manovra sul retro riuscita"})
+	else:
+		_log("Manovra sul retro da %s fallita (dado %d, totale %d)." % [Mappa.nome(h), d, tot])
 
 ## Il contrattacco: attaccante e difensore si scambiano i ruoli (esagoni, forze impegnate, morale)
 func _scambia_ruoli(b: Dictionary) -> void:
@@ -2052,6 +2243,9 @@ func _morale_lato(b: Dictionary, lato: int) -> int:
 			bn = conta[m]
 			best = m
 	var dem := int(b["dem"][0 if lato == int(b["la"]) else 1])
+	# regola W: la Guardia impegnata dà morale 3 per il round (zero se la forza è demoralizzata)
+	if b.get("guardia", [false, false])[0 if lato == int(b["la"]) else 1]:
+		return 0 if dem > 0 else 3
 	return maxi(0, best - dem)
 
 ## Morale di un'unità con le regole dello scenario (morale ridotto, patriottismo russo, capi che
@@ -2165,20 +2359,46 @@ func _risolvi_round(b: Dictionary) -> void:
 		mods.append(["Fortezza", am])
 		mod += am
 	mod = clampi(mod, -4, 4)
+	# regole facoltative: aggiramento (U), carica di cavalleria (V), matrice tattica
+	var nc := false
+	if b.get("aggira_ok", false) and int(s["cb"]["r"]) == 1:
+		var am := 1 if grande == la else -1
+		mods.append(["Manovra sul retro", am])
+		mod += am
+	var gi := 0 if grande == la else 1
+	if b.get("carica", [false, false])[gi]:
+		mods.append(["Carica", 1])
+		mod += 1
+	if b.get("carica", [false, false])[1 - gi]:
+		mods.append(["Carica", -1])
+		mod -= 1
+	if b["tipo"] == "campo" and opzione("matrice"):
+		var mt = valore_matrice(b["tat"][1 - gi], b["tat"][gi])
+		if mt is String:
+			nc = true
+		elif int(mt) != 0:
+			mods.append(["Tattica", int(mt)])
+			mod += int(mt)
 	var d1 := dado()
 	var d2 := dado()
 	var tiro := clampi(d1 + d2 + mod, 2, 12)
 	var rg := "0"
 	var rp := "0"
-	if rap == "4:1":
+	if nc:
+		mods.append(["Tattica: nessun combattimento", 0])
+	elif rap == "4:1":
 		rp = "D3"
 	else:
 		var r: Array = Dati.crt(rap, tiro)
 		rg = r[0]
 		rp = r[1]
+	if nc:
+		d1 = 0
+		d2 = 0
+		tiro = 0
 	var piccola_sp := _sp_battaglia(b, piccola)
 	var pp := Dati.perdita(rp, piccola_sp)
-	if rap == "4:1":
+	if rap == "4:1" and not nc:
 		rg = "1" if pp > 1 else "0"
 	var pg := Dati.perdita(rg, piccola_sp)
 	# Egitto: i Francesi possono evitare una perdita con un dado più il valore del capo
@@ -2248,6 +2468,21 @@ func _elimina_battaglia(b: Dictionary, lato: int, n: int, demor: bool, capo: Str
 	if n <= 0:
 		return
 	var ids := _impegnate(b, lato)
+	# Guardia impegnata (W) o carica (V): le perdite vanno prima su di loro
+	var ix := 0 if lato == int(b["la"]) else 1
+	var prima := []
+	if b.get("guardia", [false, false])[ix]:
+		prima = ids.filter(func(id): return s["unita"][id]["t"] in ["GI", "GC"])
+	elif b.get("carica", [false, false])[ix]:
+		prima = ids.filter(func(id): return Dati.e_cavalleria(s["unita"][id]["t"]))
+		demor = false
+	for id in prima:
+		while n > 0 and s["unita"].has(id) and int(s["unita"][id]["sp"]) > 0:
+			s["unita"][id]["sp"] = int(s["unita"][id]["sp"]) - 1
+			_al_pool(s["unita"][id], 1)
+			n -= 1
+	if n <= 0:
+		return
 	var morale := _morale_lato(b, lato) + int(b["dem"][0 if lato == int(b["la"]) else 1])
 	var naz: String = s["capi"][capo]["n"] if capo != "" else ""
 	_elimina_sp(ids, n, demor and n > 1, naz, morale)

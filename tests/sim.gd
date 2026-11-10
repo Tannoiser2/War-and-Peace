@@ -10,7 +10,10 @@ func _init() -> void:
 	var t0 := Time.get_ticks_msec()
 	for p in n:
 		var mo := Motore.new()
-		mo.nuova({"seed": p * 7919 + 3, "scen": sc})
+		var opz := {}
+		for o in OS.get_environment("WP_OPZIONI").split(",", false):
+			opz[o] = true
+		mo.nuova({"seed": p * 7919 + 3, "scen": sc, "opzioni": opz})
 		var ia := [IA.new(mo), IA.new(mo)]
 		var passi := 0
 		var conta := {}

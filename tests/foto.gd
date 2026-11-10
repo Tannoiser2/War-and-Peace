@@ -23,6 +23,8 @@ func _run():
 		quit(); return
 	main.scelta_modo = "ia"
 	main.scelta_lato = 0
+	if modo == "tattica":
+		main.opz_regole = {"matrice": true, "carica": true, "guardia": true, "aggiramento": true}
 	main.scelta_scen = OS.get_environment("WP_SCEN") if OS.get_environment("WP_SCEN") != "" else "1805"
 	main._avvia_locale()
 	await shot("partita")
@@ -51,6 +53,28 @@ func _run():
 		main._scegli_capo(nap)
 		main._centra_su(main.sel_hex, 9.0)
 		await shot("movimento")
+		quit(); return
+	if modo == "tattica":
+		# gioca con l'IA fino alla prima scelta di tattica del giocatore
+		main.velocita = 50.0
+		var n := 0
+		while n < 3000 and not main.m.finita():
+			await process_frame
+			if main.popup_aperto:
+				main._chiudi_popup()
+				main.coda_rapporti.clear()
+			var r: Dictionary = main.m.richiesta()
+			if r.is_empty() or main._chi(int(r["lato"])) != "io":
+				continue
+			if r["k"] in ["tattica", "aggira", "guardia", "carica"]:
+				main._aggiorna_tutto()
+				await shot("tattica_" + r["k"])
+				if r["k"] == "tattica":
+					main._matrice_popup()
+					await shot("matrice")
+					quit(); return
+			await main._invia(main.ia[int(r["lato"])].decidi(r))
+			n += 1
 		quit(); return
 	# gioca con l'IA anche per il lato umano fino a una battaglia o alla fine
 	main.velocita = 50.0

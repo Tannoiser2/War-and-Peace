@@ -21,6 +21,17 @@ var _campi := {}
 var carattere := 1
 var _mare_fatto := {}
 
+## Prove di confronto: WP_NO_<NOME> spegne un comportamento, WP_IA_VECCHIA=<lato> li spegne tutti per un lato
+func _attivo(nome: String) -> bool:
+	# prudenza (riunirsi prima dell'obiettivo, evitare eserciti più forti): nelle prove rallenta
+	# troppo l'attaccante; resta solo per i lati che lo scenario indica come "prudenti"
+	if nome in ["RADUNO", "PERICOLO"] and not int(m.s["lato"]) in m.scen.get("ia", {}).get("prudente", []):
+		return false
+	if OS.get_environment("WP_NO_" + nome) != "":
+		return false
+	var v := OS.get_environment("WP_IA_VECCHIA")
+	return v == "" or int(v) != int(m.s["lato"])
+
 func _init(motore: Motore) -> void:
 	m = motore
 
@@ -152,10 +163,17 @@ func _pianifica(lato: int) -> void:
 		var cb: Dictionary = m.s["capi"][b]
 		return int(ca["v"]) * 100 + m.sp_in(ca["h"], lato) > int(cb["v"]) * 100 + m.sp_in(cb["h"], lato))
 	var assegnati := {}
+	# capi "in più" (nella pila ci sono più capi di quanti servano a portare le truppe) e capi quasi
+	# soli vanno a prendere le truppe rimaste ferme senza capo (rinforzi, guarnigioni liberate)
+	var raccoglitori := _raccolta(capi, lato) if _attivo("RACCOLTA") else {}
+	for id in raccoglitori:
+		piano.append({"capo": id, "da": m.s["capi"][id]["h"], "verso": raccoglitori[id], "tipo": "raccogli"})
 	# il capo migliore di ogni esagono sceglie il bersaglio, gli altri capi dello stesso esagono
 	# lo seguono (bataillon carré: corpi separati che convergono sullo stesso obiettivo)
 	var scelto_qui := {}
 	for id in capi:
+		if raccoglitori.has(id):
+			continue
 		var c: Dictionary = m.s["capi"][id]
 		var h: String = c["h"]
 		var bersaglio: Array
@@ -171,11 +189,92 @@ func _pianifica(lato: int) -> void:
 	# capi senza truppe: raggiungono le truppe senza capo più vicine
 	for id in capi:
 		var c: Dictionary = m.s["capi"][id]
-		if m.sp_in(c["h"], lato) == 0:
+		if m.sp_in(c["h"], lato) == 0 and not raccoglitori.has(id):
 			piano.append({"capo": id, "da": c["h"], "verso": "", "tipo": "raggiungi"})
+	if OS.get_environment("WP_DEBUG_IA") != "":
+		var tot := 0
+		var senza := 0
+		for id in m.s["unita"]:
+			var u: Dictionary = m.s["unita"][id]
+			if m.lato_unita(u) == lato and u["h"] != "":
+				tot += int(u["sp"])
+				if not m.rifornita(u, lato):
+					senza += int(u["sp"])
+		print("RIF t%d l%d PF %d senza rifornimento %d" % [m.s["turno"], lato, tot, senza])
+		for p in piano:
+			var cc: Dictionary = m.s["capi"][p["capo"]]
+			print("PIANO t%d l%d %s (%dPF) %s -> %s [%s]" % [m.s["turno"], lato, cc["nome"], m.sp_in(cc["h"], lato), Mappa.nome(cc["h"]), Mappa.nome(p["verso"]) if p["verso"] != "" else "-", p["tipo"]])
 	# cavalleria senza capo: con il capo più vicino o resta
 	piano.append({"capo": "", "tipo": "cavalleria"})
 	piano.append({"capo": "", "tipo": "trincee"})
+
+## Truppe ferme senza capo: esagono -> [nazione, punti forza di fanteria]
+func _truppe_ferme(lato: int) -> Dictionary:
+	var out := {}
+	for h in m.esagoni_di(lato):
+		if not m.capi_in(h, lato).is_empty():
+			continue
+		var per_naz := {}
+		for id in m.unita_in(h, lato, true):
+			var u: Dictionary = m.s["unita"][id]
+			if u["mo"] or Dati.e_cavalleria(u["t"]) or u["t"] == "P":
+				continue
+			per_naz[u["n"]] = int(per_naz.get(u["n"], 0)) + int(u["sp"])
+		var best := ""
+		for n in per_naz:
+			if best == "" or per_naz[n] > per_naz[best]:
+				best = n
+		if best == "":
+			continue
+		var sp: int = per_naz[best]
+		# una guarnigione minacciata di una città da tenere resta dov'è
+		if Mappa.ha_citta(h) and _forza_vicina(h, 1 - lato, 5) > 0 and sp <= 3:
+			continue
+		if sp >= 3:
+			out[h] = [best, sp]
+	return out
+
+## Assegna i capi liberi alle truppe ferme: capo -> esagono delle truppe
+func _raccolta(capi: Array, lato: int) -> Dictionary:
+	var ferme := _truppe_ferme(lato)
+	if ferme.is_empty():
+		return {}
+	# capi liberi: quelli oltre il necessario in una pila e quelli con meno di 2 PF
+	var liberi := []
+	var per_hex := {}
+	for id in capi:
+		var h: String = m.s["capi"][id]["h"]
+		if not per_hex.has(h):
+			per_hex[h] = []
+		per_hex[h].append(id)
+	for h in per_hex:
+		var lista: Array = per_hex[h]
+		var sp := m.sp_in(h, lato, true)
+		var portati := 0
+		for id in lista:
+			if portati >= sp or sp < 2:
+				liberi.append(id)
+			portati += m.max_porta(id)
+	var out := {}
+	var ordine := ferme.keys()
+	ordine.sort_custom(func(a, b): return int(ferme[a][1]) > int(ferme[b][1]))
+	for h in ordine:
+		var cd := campo(h)
+		var best := ""
+		var bd := 14
+		for id in liberi:
+			if out.has(id) or m.s["capi"][id]["n"] != ferme[h][0]:
+				continue
+			# i buoni capi comandano gli eserciti: a raccogliere vanno i generici e i mediocri
+			if int(m.s["capi"][id]["v"]) >= 2:
+				continue
+			var d: int = cd.get(m.s["capi"][id]["h"], 9999)
+			if d < bd:
+				bd = d
+				best = id
+		if best != "":
+			out[best] = h
+	return out
 
 ## Città proprie da difendere minacciate: [esagono, minaccia]
 func _difese(lato: int) -> Array:
@@ -262,6 +361,33 @@ func _scegli_bersaglio(h: String, lato: int, obiettivi: Array, difese: Array, as
 		if score > bv:
 			bv = score
 			best = [t, dfn[1], "difesa"]
+	# obiettivo decisivo ben difeso: prima ci si riunisce al grosso più vicino (niente sconfitte separate)
+	if _attivo("RADUNO") and not best.is_empty() and best[2] == "citta" and _valore_obiettivo(best[0], lato) >= 8:
+		var t: String = best[0]
+		var dif := forza(t, 1 - lato) + _forza_vicina(t, 1 - lato, 4) * 0.8
+		var mia_loc := forza(h, lato) + _forza_vicina(h, lato, 2) * 0.8 - forza(h, lato) * 0.8
+		if dif > mia_loc * 1.1 and dif > 6.0:
+			var cd := campo(t)
+			var dt: int = cd.get(h, 9999)
+			var raduno := ""
+			var rv := -INF
+			var mia_qui := forza(h, lato)
+			for h2 in m.esagoni_di(lato):
+				# ci si riunisce solo a un gruppo più forte: il più forte va avanti e gli altri lo seguono
+				var f2 := forza(h2, lato)
+				if h2 == h or f2 < 4.0 or f2 < mia_qui or (f2 == mia_qui and h2 < h):
+					continue
+				var d2: int = c.get(h2, 9999)
+				if d2 > 12:
+					continue
+				var v2 := forza(h2, lato) - d2 * 0.6 - float(cd.get(h2, 9999)) * 0.3
+				if cd.get(h2, 9999) > dt + 3:
+					continue
+				if v2 > rv:
+					rv = v2
+					raduno = h2
+			if raduno != "":
+				best = [raduno, best[1], "raduno"]
 	# troppo debole: si ritira verso le forze amiche più grandi
 	var minaccia := _forza_vicina(h, 1 - lato, 4)
 	if minaccia > mia * 1.5 and m.sp_in(h, lato) > 0:
@@ -300,9 +426,17 @@ func _concretizza(p: Dictionary) -> Dictionary:
 	if not m.s["capi"].has(capo):
 		return {}
 	var c: Dictionary = m.s["capi"][capo]
-	if c["h"] == "" or c["h"] != p["da"] and p["tipo"] != "raggiungi":
+	if c["h"] == "" or c["h"] != p["da"] and not p["tipo"] in ["raggiungi", "raccogli"]:
 		return {}
 	var h: String = c["h"]
+	if p["tipo"] == "raccogli":
+		var dest: String = p["verso"]
+		if h == dest or int(c["mp"]) > 0:
+			return {}
+		var rag0 := m.raggiungibili(capo, {})
+		if rag0.has(dest):
+			return {"a": "muovi", "capo": capo, "porta": {}, "verso": dest, "fm": 0}
+		return _verso_migliore(capo, {}, rag0, campo(dest), lato, dest, false)
 	if p["tipo"] == "raggiungi":
 		if m.sp_in(h, lato) > 0:
 			return {}
@@ -331,7 +465,70 @@ func _concretizza(p: Dictionary) -> Dictionary:
 	if decisivo and not inverno_freddo():
 		rag2 = m.raggiungibili(capo, porta, 3 if carattere > 0 else 2)
 	var d := _verso_migliore(capo, porta, rag2, campo(verso), lato, verso, p["tipo"] == "esercito", decisivo)
+	if not d.is_empty() and _attivo("DEPOSITI"):
+		var rr := m.raggiungibili(capo, porta, int(d["fm"]))
+		var dep := _depositi(capo, porta, rr, str(d["verso"]), lato)
+		if not dep.is_empty():
+			d["lascia"] = dep
 	return d
+
+## Depositi: punti forza di fanteria lasciati lungo la strada perché la catena del rifornimento
+## (al massimo 3 punti movimento fra un'unità rifornita e la successiva dello stesso colore) arrivi
+## fino alla destinazione
+func _depositi(capo: String, porta: Dictionary, rag: Dictionary, verso: String, lato: int) -> Dictionary:
+	var c: Dictionary = m.s["capi"][capo]
+	var naz: String = c["n"]
+	var rif: Dictionary = m.s["rifornimento"].get(str(lato), {}).get(naz, {})
+	if rif.has(verso) or rif.is_empty():
+		return {}
+	var fanteria := 0
+	for id in porta:
+		var u: Dictionary = m.s["unita"][id]
+		if not Dati.e_cavalleria(u["t"]) and not u["t"] in ["GI", "GC"]:
+			fanteria += int(porta[id])
+	if fanteria < 8:
+		return {}
+	# vicino al nemico conta la massa: niente depositi
+	if _forza_vicina(verso, 1 - lato, 6) > 0:
+		return {}
+	var strada := m.percorso(rag, verso)
+	var da: String = c["h"]
+	if not rif.has(da):
+		return {}
+	strada.push_front(da)
+	var mp_di := func(h: String) -> int:
+		return 0 if h == da else int(rag[h]["mp"])
+	# l'ultimo esagono della strada ancora rifornito: lì il primo deposito, poi uno ogni 3 punti
+	var cur := da
+	for h in strada:
+		if rif.has(h):
+			cur = h
+	var pc: int = mp_di.call(cur)
+	var dep := {}
+	for i in 3:
+		# basta un'unità dello stesso colore lì o a un esagono di distanza
+		var gia := false
+		for hx in [cur] + Mappa.vicini(cur).map(func(v): return v[0]):
+			for id in m.unita_in(hx, lato):
+				if m.s["unita"][id]["n"] == naz and not id in porta:
+					gia = true
+		if not gia and cur != verso:
+			dep[cur] = 1
+		if mp_di.call(verso) <= pc + 3:
+			if fanteria - dep.size() < 4 or dep.size() > 1:
+				return {}
+			return dep
+		var prossimo := ""
+		for h in strada:
+			var mh: int = mp_di.call(h)
+			if mh > pc and mh <= pc + 3 and h != verso:
+				prossimo = h
+		if prossimo == "":
+			return {}
+		cur = prossimo
+		pc = mp_di.call(cur)
+	return {}
+
 
 func _valore_obiettivo(h: String, lato: int) -> int:
 	return int(m.scen["obiettivi"][lato].get(Mappa.nome_citta(h), 0)) if Mappa.ha_citta(h) else 0
@@ -416,6 +613,11 @@ func _verso_migliore(capo: String, porta: Dictionary, rag: Dictionary, cd: Dicti
 				v += 4.0 if attacca else 2.0
 			elif rapp < 1.0:
 				v -= 6.0
+		# pericolo: un esercito nemico più forte a portata di marcia, senza amici vicini (battuti uno alla volta)
+		if forza >= 4 and _attivo("PERICOLO"):
+			var pr := _pericolo(h, lato, forza, g.get("da", "")) - _pericolo(g.get("da", ""), lato, forza, g.get("da", ""))
+			if pr > 0.0:
+				v -= minf(8.0, pr * 4.0)
 		# logoramento: evitare grandi ammassi lontano dalla battaglia
 		var tot := forza + m.sp_in(h, lato)
 		if tot > 12 and vicino_nemico == 0:
@@ -433,6 +635,19 @@ func _verso_migliore(capo: String, porta: Dictionary, rag: Dictionary, cd: Dicti
 	if best == "" or bv < 0.5:
 		return {}
 	return {"a": "muovi", "capo": capo, "porta": porta, "verso": best, "fm": rag[best]["fm"]}
+
+## Quanto un esercito sarebbe esposto in un esagono: forza nemica a portata contro forza amica vicina
+func _pericolo(h: String, lato: int, forza_mia: int, da: String) -> float:
+	if h == "":
+		return 0.0
+	var nem := _forza_vicina(h, 1 - lato, 5)
+	var amici := float(forza_mia) + _forza_vicina(h, lato, 3)
+	if da != "" and campo(h).get(da, 9999) <= 3:
+		amici -= float(m.sp_in(da, lato))
+	amici = maxf(amici, float(forza_mia))
+	if nem <= amici * 1.3:
+		return 0.0
+	return nem / maxf(1.0, amici) - 1.3
 
 func _vicino_rifornimento(h: String, lato: int) -> bool:
 	var r: Dictionary = m.s["rifornimento"].get(str(lato), {})
@@ -546,12 +761,17 @@ func _dichiara(rq: Dictionary) -> Dictionary:
 				usato = true
 		if usato:
 			continue
+		# senza rifornimento si logora ogni mese: meglio tentare l'assalto a una città che conta
+		var disperato := _attivo("DISPERATO") and not _stack_rifornito(p[0], lato) and _valore_obiettivo(p[1], lato) >= 5
 		# città che si chiuderà in fortezza: serve forza per assalto o un assedio rifornito
 		if Mappa.ha_citta(p[1]) and m.controllore(p[1]) == 1 - lato:
 			var dif := m.sp_in(p[1], 1 - lato)
-			if dif <= Dati.capienza(Mappa.tipo_citta(p[1])) and m.sp_in(p[0], lato, true) < dif * 2:
+			var serve := 1.3 if disperato else 2.0
+			if dif <= Dati.capienza(Mappa.tipo_citta(p[1])) and m.sp_in(p[0], lato, true) < dif * serve:
 				continue
 		var s2 := soglia
+		if disperato:
+			s2 -= 0.4
 		# con Napoleone al comando si attacca anche alla pari (soprattutto Prussiani e Austriaci)
 		if _miglior_capo(p[0], lato) >= 3:
 			s2 -= 0.3
@@ -588,7 +808,16 @@ func _assalto(rq: Dictionary) -> String:
 		return "assedio"
 	if mia >= dentro * 2 and carattere > 0:
 		return "assalto"
+	# senza rifornimento l'assedio è impossibile: si assalta se la città vale la pena
+	if _attivo("DISPERATO") and riforniti == 0 and mia >= dentro * 1.3 and _valore_obiettivo(b["dif"], lato) >= 5:
+		return "assalto"
 	return "rinuncia"
+
+func _stack_rifornito(h: String, lato: int) -> bool:
+	for id in m.unita_in(h, lato, true):
+		if m.rifornita(m.s["unita"][id], lato):
+			return true
+	return false
 
 func _rapporto_corrente(b: Dictionary, lato: int) -> float:
 	var mia := float(m._sp_battaglia(b, lato))

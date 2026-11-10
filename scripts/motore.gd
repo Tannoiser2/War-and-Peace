@@ -1586,6 +1586,35 @@ func _muovi(d: Dictionary) -> bool:
 		ultimo = h
 		if h == arrivo:
 			break
+	# fanteria lasciata lungo la strada (regola J6e: depositi per il rifornimento)
+	var lascia: Dictionary = d.get("lascia", {})
+	var lasciati := 0
+	for h in strada:
+		if not lascia.has(h) or nemico_in(h, l):
+			if h == arrivo:
+				break
+			continue
+		var n := int(lascia[h])
+		for id in mobili.duplicate():
+			if n <= 0 or not s["unita"].has(id):
+				continue
+			var u: Dictionary = s["unita"][id]
+			if Dati.e_cavalleria(u["t"]) or u["t"] in ["GI", "GC"]:
+				continue
+			var k := mini(n, int(u["sp"]))
+			var nid: String = _separa(id, k) if k < int(u["sp"]) else id
+			s["unita"][nid]["h"] = h
+			s["unita"][nid]["mo"] = true
+			s["unita"][nid]["in"] = false
+			if nid == id:
+				mobili.erase(id)
+			n -= k
+			lasciati += k
+		_aggiorna_controllo(h)
+		if h == arrivo:
+			break
+	if lasciati > 0:
+		nota += " (%d PF lasciati di presidio lungo la strada)" % lasciati
 	# sposta
 	for id in mobili:
 		if s["unita"].has(id):

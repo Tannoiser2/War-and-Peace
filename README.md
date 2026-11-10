@@ -47,6 +47,13 @@ Si gioca qui: https://tannoiser2.github.io/War-and-Peace/ (e nella ludoteca: htt
 - L'IA segue i consigli dei giocatori esperti e del designer (articolo "Napoleon's Empire" su The General):
   corpi di 5-10 PF, Napoleone pesato più dei suoi PF, marcia forzata per le mosse decisive, nel 1805 Ulm e poi
   Vienna, nel 1813 fuga iniziale degli Alleati e ammassamento francese al nord se arriva l'Austria.
+- Per gli scenari nuovi l'IA sa anche: mandare i capi in più a prendere i rinforzi rimasti fermi senza capo,
+  lasciare depositi lungo la strada (fanteria ogni 3 punti movimento, regola J6e) per non perdere il
+  rifornimento, assaltare una città importante quando l'esercito è senza rifornimento e l'assedio è impossibile,
+  contrattaccare con forze nettamente superiori, imbarcare e sbarcare le armate, cacciare e bloccare le flotte
+  nemiche, sbarcare le forze in mare e spostarsi via mare dove lo scenario lo permette.
+- Confronti fra versioni dell'IA: `WP_IA_VECCHIA=<lato>` spegne i comportamenti nuovi per un lato e
+  `WP_NO_RACCOLTA`, `WP_NO_DEPOSITI`, `WP_NO_DISPERATO` uno alla volta; `WP_DEBUG_IA=1` stampa i piani.
 
 Semplificazioni: rinforzi in battaglia tentati in automatico (si spengono dal menu); intercettazioni e inseguimenti
 navali decisi in automatico; rimpiazzi a punti della Spagna comprati in automatico; prede navali affondate e

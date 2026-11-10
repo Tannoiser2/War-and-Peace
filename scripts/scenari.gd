@@ -407,7 +407,7 @@ static func _egitto(flotte: bool) -> Dictionary:
 		"punti_citta": [citta, {}],
 		"obiettivi": [{"Cairo": 9, "Alexandria": 4, "Damietta": 3, "Aswan": 4, "El Arish": 3, "Gaza": 3, "Jaffa": 3, "Jerusalem": 3, "Acre": 5},
 			{"Cairo": 8, "Alexandria": 5, "Damietta": 3, "Aswan": 3, "El Arish": 3}],
-		"ia": {"difendi": [{"Cairo": 6, "Alexandria": 4}, {"Acre": 6, "Cairo": 5, "Aswan": 4}]},
+		"ia": {"difendi": [{"Cairo": 3}, {"Acre": 6, "Cairo": 5, "Aswan": 4}]},
 		"vittoria": "Punti città francesi a fine partita (1 per Alessandria, Assuan, Damietta, El Arish, Gaza, Giaffa e Gerusalemme, 2 per Acri e il Cairo): 9-11 vittoria decisiva francese, 6-8 marginale, 5 pareggio, 3-4 vittoria marginale alleata, 0-2 decisiva. Rifornimento francese dal Cairo (con Bonaparte vicino o Assuan presa) e lungo il Nilo; la Turchia entra in guerra con il dado contro il segnalino (al più tardi a novembre 1798). Niente travolgimenti, niente 4:1; ogni perdita francese si può evitare con un dado più il capo di 5 o più.",
 		"margine": 0,
 	}

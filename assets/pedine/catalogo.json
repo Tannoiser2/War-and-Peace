@@ -1841,6 +1841,70 @@
    "val": 0,
    "sub": "",
    "img": "capo_FR_x_Leader_I"
+  },
+  {
+   "k": "l",
+   "naz": "TU",
+   "nome": "Djezzar",
+   "val": 1,
+   "sub": "",
+   "img": "capo_TU_x_Djezzar"
+  },
+  {
+   "k": "l",
+   "naz": "TU",
+   "nome": "Mustapha",
+   "val": 1,
+   "sub": "",
+   "img": "capo_TU_x_Mustapha"
+  },
+  {
+   "k": "l",
+   "naz": "TU",
+   "nome": "Abdallah",
+   "val": 1,
+   "sub": "",
+   "img": "capo_TU_x_Abdallah"
+  },
+  {
+   "k": "l",
+   "naz": "TU",
+   "nome": "Leader A",
+   "val": 0,
+   "sub": "",
+   "img": "capo_TU_x_Leader_A"
+  },
+  {
+   "k": "l",
+   "naz": "TU",
+   "nome": "Leader B",
+   "val": 0,
+   "sub": "",
+   "img": "capo_TU_x_Leader_B"
+  },
+  {
+   "k": "l",
+   "naz": "TU",
+   "nome": "Murad Bey",
+   "val": 1,
+   "sub": "Mm",
+   "img": "capo_TU_Mm_Murad_Bey"
+  },
+  {
+   "k": "l",
+   "naz": "TU",
+   "nome": "Ibrahim Bey",
+   "val": 1,
+   "sub": "Mm",
+   "img": "capo_TU_Mm_Ibrahim_Bey"
+  },
+  {
+   "k": "l",
+   "naz": "TU",
+   "nome": "Hassan Bey",
+   "val": 1,
+   "sub": "Mm",
+   "img": "capo_TU_Mm_Hassan_Bey"
   }
  ],
  "segnalini": {

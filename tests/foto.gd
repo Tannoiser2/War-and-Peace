@@ -16,12 +16,31 @@ func _run():
 	await shot("menu")
 	if modo == "menu":
 		quit(); return
+	if modo == "nuova":
+		main.scelta_scen = OS.get_environment("WP_SCEN") if OS.get_environment("WP_SCEN") != "" else "1805"
+		main._menu_nuova()
+		await shot("nuova")
+		quit(); return
 	main.scelta_modo = "ia"
 	main.scelta_lato = 0
 	main.scelta_scen = OS.get_environment("WP_SCEN") if OS.get_environment("WP_SCEN") != "" else "1805"
 	main._avvia_locale()
 	await shot("partita")
 	if modo == "partita":
+		quit(); return
+	if modo == "navale":
+		var t: String = Mappa.hex("Toulon")
+		main._scegli_posto(t)
+		for id in main.m.unita_in(t, 0, true):
+			main.sel_carico[id] = int(main.m.s["unita"][id]["sp"])
+		for c in main.m.capi_in(t, 0):
+			main.sel_capi_nave.append(c)
+		main._ricalcola_navi()
+		main.sel_hex = t
+		main._aggiorna_tutto()
+		main.distanza = 30.0
+		main._centra_su(Mappa.hex("Leghorn"), 30.0)
+		await shot("navale")
 		quit(); return
 	if modo == "movimento":
 		var nap := ""

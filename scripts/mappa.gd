@@ -62,6 +62,40 @@ static func citta_maggiore(h: String) -> bool:
 	var t := tipo_citta(h)
 	return t == "maggiore" or t == "capitale"
 
+## Esagono costiero (tocca una zona di mare): le zone di mare toccate
+static func zone(h: String) -> Array:
+	return esagoni.get(h, {}).get("mz", [])
+
+static func costiero(h: String) -> bool:
+	return esagoni.get(h, {}).has("mz")
+
+static func porto(h: String) -> bool:
+	return esagoni.get(h, {}).get("porto", false)
+
+static func nilo(h: String) -> bool:
+	return esagoni.get(h, {}).get("nilo", false)
+
+## Distanza in esagoni (ricerca in ampiezza, limitata)
+static func distanza(a: String, b: String, limite := 12) -> int:
+	if a == b:
+		return 0
+	var vis := {a: 0}
+	var coda := [a]
+	var i := 0
+	while i < coda.size():
+		var h: String = coda[i]
+		i += 1
+		if vis[h] >= limite:
+			continue
+		for v in esagoni[h]["v"]:
+			var n: String = v[0]
+			if not vis.has(n):
+				vis[n] = vis[h] + 1
+				if n == b:
+					return vis[n]
+				coda.append(n)
+	return 999
+
 static func hex(nome: String) -> String:
 	return per_nome.get(nome, "")
 

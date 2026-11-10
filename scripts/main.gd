@@ -67,11 +67,37 @@ var carattere_ia := 1
 
 # selezione
 var sel_hex := ""
+
 var sel_capo := ""
 var sel_porta := {}
 var rag := {}
 var hover := ""
 var vista_alta := false
+# flotte, sbarchi e movimenti via mare
+var sel_posto := ""
+var sel_navi: Array = []
+var sel_carico := {}
+var sel_capi_nave: Array = []
+var dest_navi := {}
+var sel_riserva := ""
+var dest_blu: Array = []
+var modo_mare := false
+
+## Dove si disegnano le flotte in mare e dove si tocca per sceglierle (coordinate della texture)
+const ZONE_POS := {"NOR": Vector2(1431, 837), "ATL": Vector2(473, 1750), "MOC": Vector2(1442, 2808),
+	"MOR": Vector2(2709, 2764), "BAL": Vector2(2654, 584), "ROS": Vector2(3667, 3072)}
+
+func _pos_zona(z: String) -> Vector2:
+	# nello scenario dell'Egitto il Mediterraneo orientale si mostra davanti alla costa egiziana
+	if z == "MOR" and m != null and 5 in m.scen.get("aree", []):
+		return Vector2(3330, 2470)
+	return ZONE_POS.get(z, Vector2.ZERO)
+
+func _v3_posto(p: String, alt := 0.0) -> Vector3:
+	if p.begins_with("@"):
+		var v := _pos_zona(p.substr(1))
+		return Vector3(v.x * SC, alt, v.y * SC)
+	return _v3(p, alt)
 
 # nodi dell'interfaccia
 var lbl_data: Label
@@ -283,6 +309,22 @@ func _costruisci_mondo() -> void:
 	mondo.add_child(nodo_pezzi)
 	_centra_su(Mappa.hex("Ulm"), 16.0)
 
+## Esagono (o zona di mare, "@ZONA") sotto il punto dello schermo
+func _punto_sotto(pos: Vector2) -> String:
+	var h := _esagono_sotto(pos)
+	if h != "":
+		return h
+	var o := cam.project_ray_origin(pos)
+	var d := cam.project_ray_normal(pos)
+	if absf(d.y) < 0.0001:
+		return ""
+	var p := o + d * (-o.y / d.y)
+	var q := Vector2(p.x / SC, p.z / SC)
+	for z in ZONE_POS:
+		if _pos_zona(z).distance_to(q) < 150.0:
+			return "@" + z
+	return ""
+
 func _con_mipmap(path: String) -> Texture2D:
 	var t: Texture2D = load(path)
 	var img := t.get_image()
@@ -457,6 +499,102 @@ func _aggiorna_pezzi() -> void:
 			lb.no_depth_test = true
 			lb.position = Vector3(0.2, max_vis * (SPESSORE + 0.003) + 0.12, -0.12)
 			pila.add_child(lb)
+	# flotte: nei porti accanto alla pila, in mare sul cerchio della zona
+	var flotte := {}
+	for id in m.s["navi"]:
+		var nv: Dictionary = m.s["navi"][id]
+		var k := "%s|%d" % [m.posto_nave(id), m.lato_nave(nv)]
+		if not flotte.has(k):
+			flotte[k] = []
+		flotte[k].append(id)
+	for k in flotte:
+		var p: PackedStringArray = k.split("|")
+		var ids: Array = flotte[k]
+		var lato := int(p[1])
+		var base := _v3_posto(p[0])
+		var off := Vector3(0.24, 0, -0.2) if not p[0].begins_with("@") else Vector3((lato - 0.5) * 0.6, 0, 0)
+		var pila := Node3D.new()
+		pila.position = base + off
+		pila.scale = Vector3(0.8, 0.8, 0.8) if not p[0].begins_with("@") else Vector3.ONE
+		nodo_pezzi.add_child(pila)
+		var ss := 0
+		var tt := 0
+		var dan := 0
+		for i in ids.size():
+			var nv: Dictionary = m.s["navi"][ids[i]]
+			if nv["t"] == "S":
+				ss += int(nv["sp"])
+			else:
+				tt += 1
+			if nv["dan"]:
+				dan += 1
+			if i < 6:
+				var img := _img_unita(nv["n"], nv["s"], nv["t"], int(nv["sp"]))
+				if img == "":
+					img = _img_unita(nv["n"], "", nv["t"], 1)
+				if img != "":
+					var t := _pedina(img, Dati.NAZ.get(nv["n"], {}).get("col", Color.GRAY))
+					t.position = Vector3(i * 0.012, i * (SPESSORE + 0.003), -i * 0.012)
+					pila.add_child(t)
+		for c in m.s["capi"]:
+			var cc: Dictionary = m.s["capi"][c]
+			if cc.get("nave", false) and not cc["morto"] and m._posto_capo_nave(c) == p[0] and cc["h"] == "":
+				var t := _pedina(cc["img"], Dati.NAZ.get(cc["n"], {}).get("col", Color.GRAY))
+				t.position = Vector3(0.06, 7 * (SPESSORE + 0.003), -0.06)
+				pila.add_child(t)
+		var lb := Label3D.new()
+		lb.text = ("%dS" % ss if ss > 0 else "") + (" %dT" % tt if tt > 0 else "") + (" (%d danni)" % dan if dan > 0 else "")
+		lb.font = F_TITOLO
+		lb.font_size = 56
+		lb.pixel_size = 0.0032
+		lb.outline_size = 14
+		lb.modulate = Color(0.85, 0.95, 1.0)
+		lb.outline_modulate = COL_LATO[clampi(lato, 0, 2)].darkened(0.4)
+		lb.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		lb.no_depth_test = true
+		lb.position = Vector3(0.1, 0.35, -0.12)
+		pila.add_child(lb)
+	for h in m.s["blocchi"]:
+		var t := _pedina("seg_assedio1", Color(0.2, 0.3, 0.5))
+		t.position = _v3(h) + Vector3(0.22, 0, 0.22)
+		t.scale = Vector3(0.5, 1, 0.5)
+		nodo_pezzi.add_child(t)
+	# forze in mare in attesa di sbarcare
+	var ri := 0
+	for r in m.s["riserva"]:
+		var base := _v3_posto("@" + str(r["zona"]))
+		var pila := Node3D.new()
+		pila.position = base + Vector3(-0.5 + ri * 0.12, 0, 0.5)
+		ri += 1
+		nodo_pezzi.add_child(pila)
+		var sp := 0
+		var n := 0
+		for u in r["unita"]:
+			sp += int(u[3])
+			var img := _img_unita(u[0], u[1], u[2], 1)
+			if img != "" and n < 4:
+				var t := _pedina(img, Dati.NAZ.get(u[0], {}).get("col", Color.GRAY))
+				t.position = Vector3(n * 0.012, n * (SPESSORE + 0.003), -n * 0.012)
+				pila.add_child(t)
+				n += 1
+		for c in r["capi"]:
+			if n < 6:
+				var t := _pedina(m.s["capi"][c]["img"], Color.GRAY)
+				t.position = Vector3(n * 0.012, n * (SPESSORE + 0.003), -n * 0.012)
+				pila.add_child(t)
+				n += 1
+		var lb := Label3D.new()
+		lb.text = "%d PF in mare" % sp
+		lb.font = F_TITOLO
+		lb.font_size = 48
+		lb.pixel_size = 0.0032
+		lb.outline_size = 12
+		lb.modulate = Color(1, 0.96, 0.85)
+		lb.outline_modulate = COL_LATO[clampi(int(r["lato"]), 0, 2)].darkened(0.35)
+		lb.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		lb.no_depth_test = true
+		lb.position = Vector3(0.1, 0.3, -0.1)
+		pila.add_child(lb)
 	# segnalini: assedi e trincee
 	for h in m.s["assedi"]:
 		var t := _pedina("seg_assedio%d" % clampi([1, 1, 3, 3, 5, 5][clampi(int(m.s["assedi"][h]["l"]), 0, 5)], 1, 5), Color(0.3, 0.3, 0.3))
@@ -578,6 +716,24 @@ func _aggiorna_evidenze() -> void:
 		var e := _esagono_mesh(COL_FM[fm])
 		e.position = _v3(h, 0.006)
 		nodo_evid.add_child(e)
+	# destinazioni via mare (flotte, sbarchi, trasporti dello scenario)
+	var blu: Array = dest_blu.duplicate()
+	blu.append_array(dest_navi.keys())
+	for p in blu:
+		if str(p).begins_with("@"):
+			var e := _esagono_mesh(Color(0.15, 0.45, 0.95, 0.45), 1.1)
+			e.position = _v3_posto(p, 0.006)
+			nodo_evid.add_child(e)
+		else:
+			var e := _esagono_mesh(Color(0.15, 0.45, 0.95, 0.45))
+			e.position = _v3(p, 0.006)
+			nodo_evid.add_child(e)
+	if sel_posto != "":
+		var a := _anello(Color(0.3, 0.7, 1.0))
+		a.position = _v3_posto(sel_posto)
+		if sel_posto.begins_with("@"):
+			a.scale = Vector3(3, 1, 3)
+		nodo_evid.add_child(a)
 	if sel_hex != "":
 		var a := _anello(C_ORO)
 		a.position = _v3(sel_hex)
@@ -667,7 +823,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 				mouse_giu = mb.position
 			else:
 				if mb.button_index == MOUSE_BUTTON_LEFT and mb.position.distance_to(mouse_giu) < 8:
-					_clic(_esagono_sotto(mb.position))
+					_clic(_punto_sotto(mb.position))
 				elif mb.button_index == MOUSE_BUTTON_RIGHT and mb.position.distance_to(mouse_giu) < 8:
 					_annulla_selezione()
 				trascina = 0
@@ -757,7 +913,7 @@ func mostra_menu() -> void:
 	var v := _scheda_centrale(780, 640)
 	var logo := immagine("res://assets/ui/logo.webp", 620, 228)
 	v.add_child(logo)
-	var sot := etichetta("Le guerre napoleoniche, 1805-1815", F_CORSIVO, 30, C_INCHIOSTRO)
+	var sot := etichetta("Le guerre napoleoniche, 1796-1815", F_CORSIVO, 30, C_INCHIOSTRO)
 	sot.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	v.add_child(sot)
 	var capi := HBoxContainer.new()
@@ -791,9 +947,11 @@ func _menu_nuova() -> void:
 	pulisci()
 	_sfondo()
 	var sc: Dictionary = Scenari.dati(scelta_scen)
-	var v := _scheda_centrale(960, 820)
-	var rs := HBoxContainer.new()
-	rs.add_theme_constant_override("separation", 10)
+	var v := _scheda_centrale(1080, 900)
+	var rs := GridContainer.new()
+	rs.columns = 4
+	rs.add_theme_constant_override("h_separation", 8)
+	rs.add_theme_constant_override("v_separation", 6)
 	v.add_child(rs)
 	var gs := ButtonGroup.new()
 	for id in Scenari.ELENCO:
@@ -802,7 +960,9 @@ func _menu_nuova() -> void:
 		b.toggle_mode = true
 		b.button_group = gs
 		b.button_pressed = id == scelta_scen
-		b.add_theme_font_size_override("font_size", 20)
+		b.custom_minimum_size.x = 250
+		b.autowrap_mode = TextServer.AUTOWRAP_OFF
+		b.add_theme_font_size_override("font_size", 16)
 		var sid: String = id
 		b.pressed.connect(func():
 			scelta_scen = sid
@@ -1089,15 +1249,23 @@ func _apri_partita() -> void:
 	_annulla_selezione()
 	_costruisci_hud()
 	_aggiorna_tutto()
-	# centra sulla prima armata del primo lato umano
+	# centra sul capo più importante del primo lato umano (o dei Francesi)
+	var lc := 0
 	for l in [0, 1]:
 		if _chi(l) == "io":
-			for id in m.s["capi"]:
-				var c: Dictionary = m.s["capi"][id]
-				if m.lato_capo(c) == l and c["h"] != "" and c["nome"] in ["Napoleon", "Mack", "Charles", "Kutusov", "Blucher", "Wittgenstein"]:
-					_centra_su(c["h"], 15.0)
-					break
+			lc = l
 			break
+	var best := ""
+	var bv := -1
+	for id in m.s["capi"]:
+		var c: Dictionary = m.s["capi"][id]
+		if m.lato_capo(c) == lc and c["h"] != "" and Mappa.esiste(c["h"]):
+			var v := int(c["v"]) * 100 + m.sp_in(c["h"], lc)
+			if v > bv:
+				bv = v
+				best = c["h"]
+	if best != "":
+		_centra_su(best, 15.0)
 
 func _costruisci_hud() -> void:
 	# barra in alto
@@ -1317,9 +1485,10 @@ func _aggiorna_tutto() -> void:
 	var r := m.richiesta()
 	var fase := ""
 	match r.get("k", ""):
+		"navale": fase = "flotte"
 		"movimento": fase = "movimento"
 		"dichiara": fase = "dichiarazione degli attacchi"
-		"citta", "assalto", "continua", "resta": fase = "battaglie"
+		"citta", "assalto", "continua", "resta", "contro": fase = "battaglie"
 	if m.finita():
 		lbl_fase.text = "Partita finita"
 	else:
@@ -1350,6 +1519,12 @@ func _aggiorna_pannello() -> void:
 		_info_esagono(sel_hex)
 		return
 	match r["k"]:
+		"navale":
+			lbl_stato.text = "%s: flotte. Tocca un porto o un cerchio di mare con le tue navi, scegli il carico, poi la destinazione in blu (4 punti movimento: 1 per zona, 1 per entrare in porto, 2 su una costa)." % Dati.LATI[lato]
+			box_azioni.add_child(bottone("Fine della fase navale", func():
+				_annulla_selezione()
+				_invia({"a": "fine"}), 22))
+			_pannello_navale()
 		"movimento":
 			lbl_stato.text = "%s: movimento. Tocca un tuo esercito, scegli il capo e le truppe, poi la destinazione." % Dati.LATI[lato]
 			box_azioni.add_child(bottone("Fine del movimento", func():
@@ -1357,6 +1532,28 @@ func _aggiorna_pannello() -> void:
 				_invia({"a": "fine"}), 22))
 			if sel_hex != "" and m.puo_trincerare(sel_hex) and m.sp_in(sel_hex, lato) > 0:
 				box_azioni.add_child(bottone("Trincera le truppe ferme qui", func(): _invia({"a": "trincea", "h": sel_hex}), 18))
+			for rr in m.riserve(lato):
+				var sp := 0
+				for u in rr["unita"]:
+					sp += int(u[3])
+				var nomi := []
+				for c in rr["capi"]:
+					nomi.append(m.s["capi"][c]["nome"])
+				var rid: String = rr["id"]
+				box_azioni.add_child(bottone("Sbarca le forze in mare: %d PF%s (%s)" % [sp, (" con " + ", ".join(nomi)) if not nomi.is_empty() else "", Dati.ZONE.get(str(rr["zona"]), {}).get("nome", "")], func():
+					_annulla_selezione()
+					sel_riserva = rid
+					dest_blu = m.destinazioni_sbarco(rid)
+					_notifica("Tocca una costa evidenziata in blu" if not dest_blu.is_empty() else "Nessuna costa disponibile ora")
+					_aggiorna_evidenze(), 17))
+			if not m.regole_mare().is_empty() and (sel_capo != "" or not sel_porta.is_empty()):
+				var dm := m.destinazioni_mare(sel_capo, sel_porta)
+				if not dm.is_empty():
+					box_azioni.add_child(bottone("Via mare (%d PF al massimo per turno)" % int(m.regole_mare().get("max_sp", 2)), func():
+						modo_mare = true
+						rag = {}
+						dest_blu = m.destinazioni_mare(sel_capo, sel_porta)
+						_aggiorna_evidenze(), 17))
 			_pannello_movimento()
 		"dichiara":
 			lbl_stato.text = "%s: dichiara gli attacchi. Tocca un tuo esercito e poi l'esagono nemico (in rosso). Poi «Combatti»." % Dati.LATI[lato]
@@ -1404,6 +1601,15 @@ func _info_esagono(h: String) -> void:
 			pannello_info.add_child(rr)
 		for id in ids:
 			pannello_info.add_child(_riga_unita(id, false))
+	var navi := m.navi_in(h)
+	if not navi.is_empty():
+		var t := []
+		for id in navi:
+			var nv: Dictionary = m.s["navi"][id]
+			t.append("%s %s%s" % [Dati.NAZ.get(nv["n"], {}).get("agg", nv["n"]), Dati.NAVI[nv["t"]]["nome"], " danneggiata" if nv["dan"] else ""])
+		pannello_info.add_child(etichetta("Navi: " + ", ".join(t), F_TESTO, 17))
+	if m.s["blocchi"].has(h):
+		pannello_info.add_child(etichetta("Porto bloccato dalla flotta di: " + Dati.LATI[int(m.s["blocchi"][h])], F_GRASSETTO, 17, C_BLU))
 
 func _riga_unita(id: String, con_spin: bool) -> HBoxContainer:
 	var u: Dictionary = m.s["unita"][id]
@@ -1535,11 +1741,49 @@ func _annulla_selezione() -> void:
 	sel_capo = ""
 	sel_porta = {}
 	rag = {}
+	sel_posto = ""
+	sel_navi = []
+	sel_carico = {}
+	sel_capi_nave = []
+	dest_navi = {}
+	sel_riserva = ""
+	dest_blu = []
+	modo_mare = false
 	if m != null and in_partita:
 		_aggiorna_evidenze()
 
 func _clic(h: String) -> void:
 	if m == null:
+		return
+	if _fase_mia("navale"):
+		if sel_posto != "" and dest_navi.has(h):
+			var d := {"a": "naviga", "navi": sel_navi.duplicate(), "verso": h, "carico": sel_carico.duplicate(), "capi": sel_capi_nave.duplicate()}
+			_annulla_selezione()
+			await _invia(d)
+			_aggiorna_tutto()
+			return
+		if h != "" and not m.navi_in(h, int(m.s["lato"])).is_empty():
+			_annulla_selezione()
+			_scegli_posto(h)
+			if not h.begins_with("@"):
+				sel_hex = h
+			_aggiorna_tutto()
+			return
+	if _fase_mia("movimento") and sel_riserva != "" and h in dest_blu:
+		var d2 := {"a": "sbarca", "r": sel_riserva, "verso": h}
+		_annulla_selezione()
+		await _invia(d2)
+		sel_hex = h
+		_aggiorna_tutto()
+		return
+	if _fase_mia("movimento") and modo_mare and h in dest_blu:
+		var d3 := {"a": "mare", "capo": sel_capo, "porta": sel_porta.duplicate(), "verso": h}
+		_annulla_selezione()
+		await _invia(d3)
+		sel_hex = h
+		_aggiorna_tutto()
+		return
+	if h.begins_with("@"):
 		return
 	if _fase_mia("movimento") and h != "" and rag.has(h):
 		var fm := int(rag[h]["fm"])
@@ -1567,6 +1811,119 @@ func _clic(h: String) -> void:
 	_annulla_selezione()
 	_aggiorna_tutto()
 
+# ---------- flotte
+
+func _scegli_posto(p: String) -> void:
+	sel_posto = p
+	sel_navi = []
+	for id in m.navi_in(p, int(m.s["lato"])):
+		if int(m.s["navi"][id]["mp"]) < 4:
+			sel_navi.append(id)
+	sel_carico = {}
+	sel_capi_nave = []
+	_ricalcola_navi()
+
+func _ricalcola_navi() -> void:
+	dest_navi = {}
+	if sel_navi.is_empty():
+		return
+	var con_carico := not sel_carico.is_empty() or not sel_capi_nave.is_empty()
+	if con_carico and not m.carico_valido(sel_navi, sel_carico, sel_capi_nave):
+		return
+	dest_navi = m.destinazioni_navali(sel_navi, {"_": 1} if con_carico else {})
+
+func _nome_posto(p: String) -> String:
+	return Dati.ZONE[p.substr(1)]["nome"] if p.begins_with("@") else Mappa.nome(p)
+
+func _pannello_navale() -> void:
+	var lato: int = m.s["lato"]
+	# elenco delle flotte del lato
+	var posti := {}
+	for id in m.s["navi"]:
+		if m.lato_nave(m.s["navi"][id]) == lato:
+			posti[m.posto_nave(id)] = true
+	pannello_info.add_child(etichetta("Le tue flotte:", F_GRASSETTO, 18))
+	for p in posti:
+		var pp: String = p
+		var ss := 0
+		var tt := 0
+		var mp := 0
+		for id in m.navi_in(pp, lato):
+			if m.s["navi"][id]["t"] == "S":
+				ss += int(m.s["navi"][id]["sp"])
+			else:
+				tt += 1
+			mp = maxi(mp, int(m.s["navi"][id]["mp"]))
+		var b := Button.new()
+		b.text = "%s: %d squadre, %d trasporti%s" % [_nome_posto(pp), ss, tt, " (già mosse)" if mp >= 4 else ""]
+		b.toggle_mode = true
+		b.button_pressed = sel_posto == pp
+		b.add_theme_font_size_override("font_size", 16)
+		b.pressed.connect(func():
+			_annulla_selezione()
+			_scegli_posto(pp)
+			if not pp.begins_with("@"):
+				_centra_su(pp)
+			else:
+				var v := _pos_zona(pp.substr(1))
+				bersaglio_cam = Vector3(v.x * SC, 0, v.y * SC)
+				_aggiorna_camera()
+			_aggiorna_tutto())
+		pannello_info.add_child(b)
+	if sel_posto == "":
+		return
+	pannello_info.add_child(HSeparator.new())
+	pannello_info.add_child(etichetta(_nome_posto(sel_posto), F_TITOLO, 22, C_BORDEAUX))
+	if not sel_posto.begins_with("@"):
+		if m.bloccato(sel_posto, lato):
+			pannello_info.add_child(etichetta("Il porto è bloccato dal nemico: uscendo si tira sulla tabella del blocco.", F_CORSIVO, 17, C_ROSSO))
+		var cap := m.capacita_trasporti(sel_navi)
+		if cap > 0:
+			pannello_info.add_child(etichetta("Imbarco (capienza %d PF di fanteria, la cavalleria conta doppio; la fanteria si imbarca solo con un capo presente):" % cap, F_GRASSETTO, 17))
+			for id in m.unita_in(sel_posto, lato, true):
+				var u: Dictionary = m.s["unita"][id]
+				if u["mo"]:
+					continue
+				var rr := HBoxContainer.new()
+				var img := _img_unita(u["n"], u["s"], u["t"], 1)
+				if img != "":
+					rr.add_child(immagine("res://assets/pedine/%s.webp" % img, 40, 38))
+				var l := etichetta("%d PF %s" % [int(u["sp"]), Dati.TIPI[u["t"]]["nome"]], F_TESTO, 17)
+				l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+				rr.add_child(l)
+				var sp := SpinBox.new()
+				sp.min_value = 0
+				sp.max_value = int(u["sp"])
+				sp.value = int(sel_carico.get(id, 0))
+				sp.custom_minimum_size.x = 96
+				var uid: String = id
+				sp.value_changed.connect(func(v):
+					if int(v) > 0:
+						sel_carico[uid] = int(v)
+					else:
+						sel_carico.erase(uid)
+					_ricalcola_navi()
+					_aggiorna_evidenze())
+				rr.add_child(sp)
+				pannello_info.add_child(rr)
+		for c in m.capi_in(sel_posto, lato):
+			var cb := CheckBox.new()
+			cb.text = "Imbarca %s" % m.s["capi"][c]["nome"]
+			cb.button_pressed = c in sel_capi_nave
+			var cid: String = c
+			cb.toggled.connect(func(on):
+				if on:
+					sel_capi_nave.append(cid)
+				else:
+					sel_capi_nave.erase(cid)
+				_ricalcola_navi()
+				_aggiorna_evidenze())
+			pannello_info.add_child(cb)
+	if dest_navi.is_empty():
+		pannello_info.add_child(etichetta("Nessuna destinazione: carico troppo grande, nessun capo per la fanteria o punti movimento finiti.", F_CORSIVO, 17, C_SPENTO))
+	else:
+		pannello_info.add_child(etichetta("Tocca una destinazione in blu (le zone di mare sono i cerchi bianchi). Le squadre nemiche nella zona possono intercettarti.", F_CORSIVO, 17, C_SPENTO))
+
 # ---------- battaglie
 
 const TESTI_SCELTA := {
@@ -1579,6 +1936,8 @@ const TESTI_SCELTA := {
 	"interrompi": "Interrompi la battaglia",
 	"resta": "Resta e combatti",
 	"ritirati": "Ritirati",
+	"contrattacca": "Contrattacca!",
+	"lascia": "Non contrattaccare",
 }
 
 func _mostra_scelta_battaglia(r: Dictionary) -> void:
@@ -1593,6 +1952,8 @@ func _mostra_scelta_battaglia(r: Dictionary) -> void:
 			t = "Fine del round a %s. Continuare l'attacco?" % Mappa.nome(b["dif"])
 		"resta":
 			t = "Il nemico continua ad attaccare %s. Resti o ti ritiri di un esagono?" % Mappa.nome(b["dif"])
+		"contro":
+			t = "Il nemico ha interrotto l'attacco a %s. Vuoi contrattaccare? Le tue truppe impegnate diventano l'attaccante (regola N5): il terreno favorirà lui." % Mappa.nome(b["dif"])
 	box_azioni.add_child(etichetta(t, F_TESTO, 18))
 	if not b["rapporti"].is_empty():
 		box_azioni.add_child(_vista_rapporto(b["rapporti"][-1], false))
@@ -1623,6 +1984,17 @@ func _vista_rapporto(rep: Dictionary, grande: bool) -> Control:
 	v.add_child(dadi)
 	v.add_child(etichetta("Risultato: %s %s (perde %d PF), %s %s (perde %d PF)." % [Dati.LATI_BREVI[g], _ris(rep["ris"][0]), int(rep["perdite"][0]), Dati.LATI_BREVI[1 - g], _ris(rep["ris"][1]), int(rep["perdite"][1])], F_GRASSETTO, fs))
 	return v
+
+func _ris_navale(r: String) -> String:
+	match r:
+		"0": return "illesi"
+		"D": return "danni"
+		"R": return "in ritirata"
+		"K": return "una nave affondata"
+		"2K": return "due navi affondate"
+		"C": return "una nave catturata"
+		"2C": return "due navi catturate"
+	return r
 
 func _ris(r: String) -> String:
 	match r:
@@ -1744,6 +2116,9 @@ func _applica(d: Dictionary) -> void:
 				coda_rapporti.append(e["rep"])
 			"annuncio":
 				_notifica(e["t"])
+			"navale_batt":
+				var rp: Dictionary = e["rep"]
+				_notifica("Battaglia navale (%s): %d contro %d squadre, dado %d%+d: %s %s, %s %s" % [_nome_posto(rp["posto"]), int(rp["forze"][0]), int(rp["forze"][1]), int(rp["dado"]), int(rp["mod"]), Dati.LATI_BREVI[int(rp["lati"][0])], _ris_navale(str(rp["ris"][0])), Dati.LATI_BREVI[int(rp["lati"][1])], _ris_navale(str(rp["ris"][1]))])
 			"dado":
 				if _ci_sono_umani():
 					_notifica("%s: dado %s" % [e["titolo"], ", ".join(e["dadi"].map(func(x): return str(x)))])

@@ -31,16 +31,27 @@ Si gioca qui: https://tannoiser2.github.io/War-and-Peace/ (e nella ludoteca: htt
 
 - Le tabelle in `scripts/dati.gd` sono quelle ufficiali della Player-Aid Card (6ª/7ª ed., One Small Step 2019):
   Combat Results Table, Combat Loss Chart, Attrition Table, Forced March Table, Terrain Effects Chart.
-- Scenari in `scripts/scenari.gd`: **The Sun of Austerlitz 1805** (agosto-dicembre 1805, vince il Francese con
-  almeno un PF a Vienna) e **Struggle of Nations 1813** (aprile-dicembre 1813, vince il Francese se tiene una città
-  maggiore non assediata nell'area 3), con neutrali (Austria, Svezia, satelliti), alleanze, rinforzi mensili,
-  assedi e trincee iniziali, fonti di rifornimento dello scenario.
+- Scenari in `scripts/scenari.gd`: tutti quelli del libretto ufficiale della 7ª edizione (One Small Step 2020):
+  I Italia 1796 (introduttivo e avanzato), II Egitto 1798-99 (anche con le flotte), III Marengo 1800, IV Austerlitz
+  1805, V Jena e Friedland 1806-07, VI Wagram 1809, VII Russia 1812, VIII Lipsia 1813, IX Francia 1814, X Waterloo
+  1815, XI Guerra di Spagna 1808-14, XII Spagna 1811-14, XIII The Final Glory (1812-1814 collegati). Ogni scenario
+  è un dizionario: schieramento in forma breve (`G("Ulm", ["FR:Ney"], "FR 4I; FR:B 1I")`), rinforzi per data,
+  alleanze ed eventi con condizioni ed effetti, fonti di rifornimento, condizioni di vittoria, "fasi" per gli
+  scenari collegati. Gli esagoni ufficiali (es. P23) si scrivono `#riga,colonna` (riga = 56 - lettere, colonna + 5).
+- Regole navali del Grand Campaign Game (sezione F): squadre e trasporti, 4 PM, zone di mare (Atlantico, Mare
+  del Nord, Baltico, Mediterraneo occidentale e orientale), intercettazione, combattimento con la Naval Results
+  Table e la Naval Damage Table, inseguimento, blocco, trasporti senza scorta, burrasche, Nelson.
+- Contrattacchi (regola N5): quando l'attaccante interrompe una battaglia campale, il difeso può contrattaccare.
+- La mappa ha anche il riquadro dell'Egitto (150 esagoni con Nilo, deserto, Siria) e le zone di mare dei porti e
+  delle coste (`tools/estrazione/mari_egitto.py`).
 - L'IA segue i consigli dei giocatori esperti e del designer (articolo "Napoleon's Empire" su The General):
   corpi di 5-10 PF, Napoleone pesato più dei suoi PF, marcia forzata per le mosse decisive, nel 1805 Ulm e poi
   Vienna, nel 1813 fuga iniziale degli Alleati e ammassamento francese al nord se arriva l'Austria.
 
-Semplificazioni: niente movimento navale né Egitto, niente contrattacco di chi viene attaccato, rinforzi in
-battaglia tentati in automatico (si spengono dal menu), aree di mappa e montagne basse/alte ricavate dall'immagine.
+Semplificazioni: rinforzi in battaglia tentati in automatico (si spengono dal menu); intercettazioni e inseguimenti
+navali decisi in automatico; rimpiazzi a punti della Spagna comprati in automatico; prede navali affondate e
+riparazioni gratuite nei porti amici; le flotte globali (oltre i mari europei) non sono in gioco; aree di mappa e
+montagne basse/alte ricavate dall'immagine.
 
 ## Prove
 

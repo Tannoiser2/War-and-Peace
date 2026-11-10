@@ -19,6 +19,7 @@ var chiave := ""
 var _campi := {}
 ## 0 = prudente, 1 = normale, 2 = aggressiva
 var carattere := 1
+var _mare_fatto := {}
 
 func _init(motore: Motore) -> void:
 	m = motore
@@ -37,18 +38,30 @@ func decidi(rq: Dictionary) -> Dictionary:
 			return {"a": "scelta", "v": _continua(rq)}
 		"resta":
 			return {"a": "scelta", "v": _resta(rq)}
+		"contro":
+			return {"a": "scelta", "v": _contro(rq)}
+		"navale":
+			return _navale(rq)
 	return {"a": "fine"}
 
 # =============================================================================================
 # Movimento
 
 func _movimento(rq: Dictionary) -> Dictionary:
+	var sb := _sbarco(int(rq["lato"]))
+	if not sb.is_empty():
+		return sb
 	var k := "%d|%d|%d" % [m.s["turno"], m.s["lato"], 0]
 	if k != chiave:
 		chiave = k
 		_campi.clear()
 		piano = []
 		_pianifica(int(rq["lato"]))
+	if not _mare_fatto.has(k):
+		var vm := _via_mare(int(rq["lato"]))
+		if not vm.is_empty():
+			return vm
+		_mare_fatto[k] = true
 	while not piano.is_empty():
 		var p: Dictionary = piano.pop_front()
 		var d := _concretizza(p)
@@ -131,7 +144,7 @@ func _pianifica(lato: int) -> void:
 	var capi := []
 	for id in m.s["capi"]:
 		var c: Dictionary = m.s["capi"][id]
-		if c["h"] == "" or m.lato_capo(c) != lato or c["morto"]:
+		if c["h"] == "" or m.lato_capo(c) != lato or c["morto"] or c.get("nave", false):
 			continue
 		capi.append(id)
 	capi.sort_custom(func(a, b):
@@ -612,3 +625,176 @@ func _resta(rq: Dictionary) -> String:
 	if r < 0.5 or (r < 0.8 and mor_mia <= 1):
 		return "ritirati"
 	return "resta"
+
+## Contrattacco: solo con forze nettamente superiori e morale buono
+func _contro(rq: Dictionary) -> String:
+	var b: Dictionary = m.s["batt"][int(rq["b"])]
+	var lato: int = rq["lato"]
+	var r := _rapporto_corrente(b, lato)
+	var mor_mia := m._morale_lato(b, lato)
+	var mor_sua := m._morale_lato(b, 1 - lato)
+	var soglia := 1.6 if carattere < 2 else 1.3
+	if r >= soglia and mor_mia >= mor_sua and mor_mia >= 1:
+		return "contrattacca"
+	return "lascia"
+
+# =============================================================================================
+# Flotte, sbarchi e movimenti via mare
+
+var _navi_ferme := {}
+var _chiave_navi := ""
+
+## Il miglior obiettivo nemico del lato (città con il valore più alto non ancora presa)
+func _obiettivo_principale(lato: int) -> String:
+	var best := ""
+	var bv := -1.0
+	var ob: Dictionary = m.scen["obiettivi"][lato]
+	for nome in ob:
+		var h := Mappa.hex(nome)
+		if h != "" and m.controllore(h) != lato and float(ob[nome]) > bv and m.aperto(h):
+			bv = float(ob[nome])
+			best = h
+	return best
+
+func _navale(rq: Dictionary) -> Dictionary:
+	var lato: int = rq["lato"]
+	var k := "%d|%d" % [m.s["turno"], lato]
+	if k != _chiave_navi:
+		_chiave_navi = k
+		_navi_ferme.clear()
+	# gruppi di navi per posto
+	var posti := {}
+	for id in m.s["navi"]:
+		var nv: Dictionary = m.s["navi"][id]
+		if m.lato_nave(nv) != lato or int(nv["mp"]) >= 4:
+			continue
+		var p := m.posto_nave(id)
+		if _navi_ferme.has(p):
+			continue
+		if not posti.has(p):
+			posti[p] = []
+		posti[p].append(id)
+	for p in posti:
+		var ids: Array = posti[p]
+		var d := _muovi_flotta(p, ids, lato)
+		if not d.is_empty():
+			return d
+		_navi_ferme[p] = true
+	return {"a": "fine"}
+
+func _muovi_flotta(p: String, ids: Array, lato: int) -> Dictionary:
+	var trasporti := ids.filter(func(x): return m.s["navi"][x]["t"] == "T")
+	var obiettivo := _obiettivo_principale(lato)
+	# trasporti in un porto con truppe: si imbarca l'armata e si sbarca vicino all'obiettivo
+	if not trasporti.is_empty() and not p.begins_with("@") and obiettivo != "" and Mappa.distanza(p, obiettivo, 8) > 6:
+		var carico := {}
+		var cap := m.capacita_trasporti(ids)
+		var peso := 0
+		var unita := m.unita_in(p, lato, true)
+		unita.sort_custom(func(a, b): return int(m.s["unita"][a]["sp"]) > int(m.s["unita"][b]["sp"]))
+		for id in unita:
+			var u: Dictionary = m.s["unita"][id]
+			if u["mo"]:
+				continue
+			var costo := 2 if Dati.e_cavalleria(u["t"]) else 1
+			var n := mini(int(u["sp"]), (cap - peso) / costo)
+			if n > 0:
+				carico[id] = n
+				peso += n * costo
+		var capi := m.capi_in(p, lato)
+		if not carico.is_empty() or not capi.is_empty():
+			var dest := m.destinazioni_navali(ids, {"_": 1})
+			var best := ""
+			var bd := 9999
+			for h in dest:
+				if h.begins_with("@") or m.nemico_fuori(h, lato) or not m.aperto(h):
+					continue
+				var dd := Mappa.distanza(h, obiettivo, 14)
+				if dd < bd:
+					bd = dd
+					best = h
+			if best != "" and bd < Mappa.distanza(p, obiettivo, 14):
+				return {"a": "naviga", "navi": ids, "verso": best, "carico": carico, "capi": capi}
+	# squadre: bloccare un porto nemico con navi più deboli, o incrociare dove sono le navi nemiche
+	var mie := m.forza_navale(ids)
+	if not p.begins_with("@") and m.s["blocchi"].get(p, -1) == lato:
+		return {}  # resta a bloccare il porto
+	if mie > 0:
+		var dest2 := m.destinazioni_navali(ids)
+		for h in dest2:
+			if not h.begins_with("@") and Mappa.porto(h) and m.controllore(h) == 1 - lato:
+				return {"a": "naviga", "navi": ids, "verso": h, "carico": {}, "capi": []}
+		var zona_nemica := ""
+		for id in m.s["navi"]:
+			var nv: Dictionary = m.s["navi"][id]
+			if m.lato_nave(nv) == 1 - lato:
+				var zs := m.zone_posto(m.posto_nave(id))
+				if not zs.is_empty():
+					zona_nemica = zs[0]
+					break
+		if zona_nemica != "" and p != "@" + zona_nemica and dest2.has("@" + zona_nemica):
+			return {"a": "naviga", "navi": ids, "verso": "@" + zona_nemica, "carico": {}, "capi": []}
+	return {}
+
+## Forze in mare: sbarcano sulla costa più vicina all'obiettivo
+func _sbarco(lato: int) -> Dictionary:
+	var obiettivo := _obiettivo_principale(lato)
+	for r in m.riserve(lato):
+		var dest := m.destinazioni_sbarco(r["id"])
+		if dest.is_empty():
+			continue
+		var best := ""
+		var bv := INF
+		for h in dest:
+			var v := float(Mappa.distanza(h, obiettivo, 20)) if obiettivo != "" else 0.0
+			v -= float(m.sp_in(h, lato)) * 0.3
+			if v < bv:
+				bv = v
+				best = h
+		if best != "":
+			return {"a": "sbarca", "r": r["id"], "verso": best}
+	return {}
+
+## Movimento via mare dello scenario: le truppe lontane dal fronte si avvicinano all'obiettivo
+func _via_mare(lato: int) -> Dictionary:
+	var regole := m.regole_mare()
+	if regole.is_empty():
+		return {}
+	var obiettivo := _obiettivo_principale(lato)
+	if obiettivo == "":
+		return {}
+	for h in m.esagoni_di(lato):
+		if not Mappa.costiero(h) or _forza_vicina(h, 1 - lato, 4) > 0:
+			continue
+		var porta := {}
+		var tot := 0
+		for id in m.unita_in(h, lato, true):
+			var u: Dictionary = m.s["unita"][id]
+			if u["mo"] or not u["n"] in regole.get("naz", ["EN"]) or u["t"] in ["M", "P"]:
+				continue
+			var n := mini(int(u["sp"]), int(regole.get("max_sp", 2)) - int(m.s["mare_usato"].get("sp", 0)) - tot)
+			if n > 0:
+				porta[id] = n
+				tot += n
+		if porta.is_empty():
+			continue
+		var capo := ""
+		for c in m.capi_in(h, lato):
+			if int(m.s["capi"][c]["mp"]) == 0 and m.s["capi"][c]["n"] in regole.get("naz", ["EN"]):
+				capo = c
+				break
+		var dest := m.destinazioni_mare(capo, porta)
+		if dest.is_empty() and capo != "":
+			capo = ""
+			dest = m.destinazioni_mare("", porta)
+		var d0 := Mappa.distanza(h, obiettivo, 25)
+		var best := ""
+		var bd := d0 - 6
+		for x in dest:
+			var dd := Mappa.distanza(x, obiettivo, 25)
+			if dd < bd:
+				bd = dd
+				best = x
+		if best != "":
+			return {"a": "mare", "capo": capo, "porta": porta, "verso": best}
+	return {}

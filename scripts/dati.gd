@@ -24,6 +24,7 @@ const MINORI := {
 	"S": "Sassonia", "Sp": "Spagna", "Sz": "Svizzera", "W": "Vestfalia", "Wu": "Württemberg",
 	"Br": "Brunswick", "He": "Assia", "Sw": "Svezia", "Pm": "Piemonte", "Mm": "Mamelucchi",
 	"K": "Legione tedesca del Re", "Ha": "Hannover", "Ba": "Baden",
+	"EG": "Egitto", "SY": "Siria",
 }
 
 ## Tipi di unità: nome, è cavalleria, morale di base
@@ -38,20 +39,36 @@ const TIPI := {
 	"CC": {"nome": "cosacchi", "cav": true},
 }
 
+## Unità navali (Grand Campaign Game, sezione F): squadre da combattimento e trasporti
+const NAVI := {
+	"S": {"nome": "squadra"},
+	"T": {"nome": "trasporto"},
+}
+
+## Zone di mare europee della mappa (e la parte orientale che tocca l'Egitto): nome, collegamenti
+const ZONE := {
+	"ATL": {"nome": "Oceano Atlantico", "con": ["NOR", "MOC"]},
+	"NOR": {"nome": "Mare del Nord", "con": ["ATL", "BAL"]},
+	"BAL": {"nome": "Mar Baltico", "con": ["NOR"]},
+	"MOC": {"nome": "Mediterraneo occidentale", "con": ["ATL", "MOR"]},
+	"MOR": {"nome": "Mediterraneo orientale", "con": ["MOC"]},
+	"ROS": {"nome": "Mar Rosso", "con": [], "im": 2},
+}
+
 const MESI := ["Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno", "Luglio", "Agosto",
 	"Settembre", "Ottobre", "Novembre", "Dicembre"]
 ## Mesi invernali (indice 0 = gennaio), come sul tracciato dei mesi della mappa
 const INVERNO := [0, 1, 10, 11]
 
-const NOMI_TERRENO := {"pianura": "terreno aperto", "foresta": "foresta", "montagna": "montagna bassa", "montagna_alta": "montagna alta", "palude": "palude"}
+const NOMI_TERRENO := {"pianura": "terreno aperto", "foresta": "foresta", "montagna": "montagna bassa", "montagna_alta": "montagna alta", "palude": "palude", "deserto": "deserto"}
 
 ## Costo in punti movimento per entrare in un esagono (Terrain Effects Chart). La montagna bassa
 ## costa 2, quella alta (Alpi) 3; palude e lago d'inverno sono terreno aperto; ogni città costa 1.
-const COSTO_TERRENO := {"pianura": 1, "foresta": 2, "montagna": 2, "montagna_alta": 3, "palude": 2}
+const COSTO_TERRENO := {"pianura": 1, "foresta": 2, "montagna": 2, "montagna_alta": 3, "palude": 2, "deserto": 2}
 const COSTO_FIUME := 1
 ## Modificatore di combattimento in battaglia campale a favore di chi è attaccato in quel terreno
 ## (foresta, palude, lago 1; montagna 2; attacco da oltre un fiume 2)
-const MOD_TERRENO := {"pianura": 0, "foresta": 1, "montagna": 2, "montagna_alta": 2, "palude": 1}
+const MOD_TERRENO := {"pianura": 0, "foresta": 1, "montagna": 2, "montagna_alta": 2, "palude": 1, "deserto": 0}
 const MOD_FIUME := 2
 
 ## Morale di base di un'unità (regola D7)
@@ -150,3 +167,47 @@ static func rapporto(grande: int, piccola: int) -> String:
 	if r >= 2.0: return "2:1"
 	if r >= 1.5: return "3:2"
 	return "1:1"
+
+# ---------------------------------------------------------------------------------------------
+# Tabelle navali (Naval Results Table, Naval Damage Table: carta delle tabelle della 7ª edizione)
+
+## Naval Results Table: per rapporto (1:1, 3:2, 2:1) e dado modificato -1..8: [L, S]
+const NAVALE := {
+	"1:1": [["2K", "0"], ["C", "0"], ["K", "0"], ["R", "D"], ["R", "D"], ["D", "R"], ["D", "R"], ["0", "K"], ["0", "C"], ["0", "2K"]],
+	"3:2": [["2C", "0"], ["K", "0"], ["R", "0"], ["R", "D"], ["D", "R"], ["0", "R"], ["0", "K"], ["0", "K"], ["0", "C"], ["0", "2C"]],
+	"2:1": [["K", "0"], ["R", "0"], ["R", "D"], ["D", "R"], ["0", "R"], ["0", "K"], ["0", "K"], ["0", "C"], ["0", "C"], ["0", "2C"]],
+}
+## Blocco, inseguimento/intercettazione, trasporti senza scorta: dado -1..8
+const BLOCCO := ["", "", "F*", "F", "F", "F", "F", "E", "", ""]
+const INSEGUIMENTO := ["", "", "F", "F", "F", "F", "I", "I", "", ""]
+const TRASPORTO := ["", "", "C", "C", "K", "K", "E", "E", "", ""]
+## Naval Damage Table: per risultato, squadre danneggiate secondo i punti della forza più piccola (1..6+)
+const DANNI_NAVALI := {
+	"D": [1, 1, 1, 1, 2, 2], "R": [1, 1, 1, 1, 2, 2], "C": [1, 1, 1, 1, 2, 2],
+	"2C": [0, 0, 1, 2, 2, 2], "K": [0, 1, 2, 2, 3, 3], "2K": [0, 0, 1, 1, 2, 2],
+	"logoramento": [1, 1, 2, 2, 3, 4],
+}
+
+static func rapporto_navale(grande: int, piccola: int) -> String:
+	if piccola <= 0:
+		return "2:1"
+	var r := float(grande) / float(piccola)
+	if r >= 2.0: return "2:1"
+	if r >= 1.5: return "3:2"
+	return "1:1"
+
+static func esito_navale(rap: String, tiro: int) -> Array:
+	return NAVALE[rap][clampi(tiro, -1, 8) + 1]
+
+static func tabella_navale(tab: Array, tiro: int) -> String:
+	var t := clampi(tiro, -1, 8) + 1
+	var v: String = tab[t]
+	if v == "":
+		# fuori tabella: sotto vale il primo risultato, sopra l'ultimo
+		v = tab[2] if t < 2 else tab[7]
+	return v
+
+static func danni_navali(ris: String, piccola: int) -> int:
+	if not DANNI_NAVALI.has(ris):
+		return 0
+	return DANNI_NAVALI[ris][clampi(piccola, 1, 6) - 1]

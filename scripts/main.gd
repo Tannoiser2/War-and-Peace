@@ -365,7 +365,9 @@ func _mat_pedina(img: String) -> StandardMaterial3D:
 	var mt := StandardMaterial3D.new()
 	mt.albedo_texture = _con_mipmap("res://assets/pedine/%s.webp" % img)
 	mt.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
-	mt.roughness = 0.6
+	# faccia stampata opaca come la mappa: senza luce (che la sbiancava) e senza riflessi
+	mt.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mt.albedo_color = Color(0.94, 0.93, 0.9)
 	cache_mat[img] = mt
 	return mt
 
@@ -375,6 +377,7 @@ func _mat_colore(c: Color, trasp := false, senza_luce := false) -> StandardMater
 		return cache_mat[k]
 	var mt := StandardMaterial3D.new()
 	mt.albedo_color = c
+	mt.metallic_specular = 0.15
 	if trasp:
 		mt.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	if senza_luce:
@@ -391,7 +394,7 @@ func _pedina(img: String, colore: Color) -> Node3D:
 	var bm := BoxMesh.new()
 	bm.size = Vector3(LATO_PEDINA, SPESSORE, LATO_PEDINA * 0.94)
 	base.mesh = bm
-	base.material_override = _mat_colore(colore.darkened(0.25))
+	base.material_override = _mat_colore(colore.darkened(0.4))
 	base.position.y = SPESSORE / 2
 	n.add_child(base)
 	var faccia := MeshInstance3D.new()
